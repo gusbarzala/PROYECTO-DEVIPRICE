@@ -1,4 +1,4 @@
-# 🎮 DevPrice - Plataforma Web de Catálogo y Precios de Juegos de Steam
+# 🎮 DevPrice - Plataforma web de catálogo y precios de juegos de steam
 
 ## 📝 Descripción del Proyecto
 DevPrice es una aplicación web interactiva desarrollada en **Python (Flask)** y **SQLite** que procesa y gestiona un catálogo de 23.100 juegos de la plataforma Steam. La plataforma permite la búsqueda dinámica de productos, filtrado por precio máximo, navegación paginada y autenticación de usuarios.
@@ -6,9 +6,9 @@ DevPrice es una aplicación web interactiva desarrollada en **Python (Flask)** y
 ---
 
 ## 🛠️ Tecnologías Utilizadas
-* **Backend:** Python, Flask, SQLite3, Werkzeug (criptografía y hash de contraseñas).
-* **Frontend:** HTML5, Bootstrap 5 (diseño responsivo estilo Steam), Jinja2.
-* **Procesamiento de Datos:** Pandas, OpenPyXL.
+* **Backend:** Python, SQLite.
+* **Frontend:** HTML, Bootstrap.
+* **Procesamiento de Datos:** 
 
 ---
 
