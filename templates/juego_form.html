@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="es" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% if modo == 'alta' %}Alta de Nuevo Juego{% else %}Editar Juego #{{ juego['ID_Juego'] }}{% endif %} | DevPrice ABM</title>
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/favicon.png') }}">
+    <!-- Bootstrap 5 CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #0d1117; color: #c9d1d9; }
+        .navbar-devprice { background-color: #161b22; border-bottom: 2px solid #238636; }
+        .card-custom { background-color: #161b22; border: 1px solid #30363d; }
+        .card-header-custom { background-color: #21262d; border-bottom: 1px solid #30363d; color: #58a6ff; }
+        .stat-box { background-color: #0d1117; border: 1px solid #30363d; border-radius: 0.5rem; }
+        .hint-text { display: block; color: #8b949e; font-size: 0.8rem; margin-bottom: 0.25rem; }
+        .error-msg { display: none; color: #f85149; font-size: 0.82rem; margin-top: 0.25rem; }
+        input:user-invalid, textarea:user-invalid { border-color: #f85149 !important; background-color: rgba(248, 81, 73, 0.08) !important; }
+        input:user-invalid + .error-msg { display: block; }
+        input:user-valid { border-color: #238636 !important; }
+    </style>
+</head>
+<body>
+
+    <!-- Navegación Superior -->
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-devprice mb-4 shadow">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center gap-2 fw-bold fs-3 text-decoration-none" href="/">
+                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="DevPrice Logo" width="38" height="38" class="d-inline-block">
+                <span class="text-white">Dev<span style="color: #00e5ff;">Price</span></span>
+            </a>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <a href="/" class="btn btn-outline-light btn-sm">Catálogo</a>
+                <a href="/comparador" class="btn btn-outline-info btn-sm fw-bold">🧮 Simulador de Precio</a>
+                {% if usuario %}
+                    <span class="navbar-text mx-2 text-light small">
+                        <strong class="text-info">{{ usuario.email }}</strong>
+                        <span class="badge bg-secondary text-uppercase ms-1">{{ usuario.rol }}</span>
+                    </span>
+                    <a href="/logout" class="btn btn-outline-danger btn-sm fw-bold">Cerrar Sesión</a>
+                {% else %}
+                    <a href="/login" class="btn btn-success btn-sm fw-bold">Iniciar Sesión</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <main class="container pb-5">
+        <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+            <a href="{% if modo == 'edicion' and juego %}/juego/{{ juego['ID_Juego'] }}{% else %}/{% endif %}" class="btn btn-outline-secondary btn-sm fw-bold">
+                &larr; Cancelar y Volver
+            </a>
+            <span class="badge {% if modo == 'alta' %}bg-success{% else %}bg-warning text-dark{% endif %} fs-6">
+                Módulo ABM: {% if modo == 'alta' %}Alta de Lanzamiento (Admin){% else %}Modificación de Registro ({{ usuario.rol|upper }}){% endif %}
+            </span>
+        </div>
+
+        <article class="card card-custom shadow-sm">
+            <header class="card-header card-header-custom py-3">
+                <h1 class="h4 mb-0 fw-bold">
+                    {% if modo == 'alta' %}
+                        ➕ Registrar Nuevo Juego en el Catálogo Oficial
+                    {% else %}
+                        ✏️ Editar Juego: {{ juego['Nombre'] }} <span class="text-secondary fs-6">(#{{ juego['ID_Juego'] }})</span>
+                    {% endif %}
+                </h1>
+            </header>
+
+            <div class="card-body p-4">
+                <form method="POST" class="row g-4">
+                    <!-- Nombre del Juego -->
+                    <div class="col-md-6">
+                        <label for="nombre" class="form-label text-light fw-bold mb-1">Nombre del Juego *</label>
+                        <span id="nombre-hint" class="hint-text">Título oficial con el que figurará en el catálogo de DevPrice.</span>
+                        <input
+                            type="text"
+                            class="form-control bg-dark text-light border-secondary"
+                            id="nombre"
+                            name="nombre"
+                            required
+                            minlength="2"
+                            aria-describedby="nombre-hint"
+                            value="{{ juego['Nombre'] if juego else '' }}"
+                            placeholder="Ej: Hollow Knight: Silksong"
+                        >
+                        <div class="error-msg">Ingresá un nombre válido de al menos 2 caracteres.</div>
+                    </div>
+
+                    <!-- Fecha de Lanzamiento y Edad -->
+                    <div class="col-md-3">
+                        <label for="release_date" class="form-label text-light fw-bold mb-1">Fecha de Lanzamiento</label>
+                        <span class="hint-text">Formato libre (ej: 15 Nov, 2026).</span>
+                        <input
+                            type="text"
+                            class="form-control bg-dark text-light border-secondary"
+                            id="release_date"
+                            name="release_date"
+                            value="{{ juego['Release_Date'] if juego and juego['Release_Date'] else '' }}"
+                            placeholder="Ej: 24 Feb, 2026"
+                        >
+                    </div>
+
+                    <div class="col-md-3">
+                        <label for="required_age" class="form-label text-light fw-bold mb-1">Edad Requerida</label>
+                        <span class="hint-text">0 para todas las edades (ATP).</span>
+                        <input
+                            type="number"
+                            min="0"
+                            max="21"
+                            class="form-control bg-dark text-light border-secondary"
+                            id="required_age"
+                            name="required_age"
+                            value="{{ juego['Required_Age']|int if juego and juego['Required_Age'] else 0 }}"
+                        >
+                    </div>
+
+                    <!-- Desarrollador y Editor -->
+                    <div class="col-md-6">
+                        <label for="desarrollador" class="form-label text-light fw-bold mb-1">Desarrollador (Estudio) *</label>
+                        <span class="hint-text">Nombre del estudio o desarrollador independiente.</span>
+                        <input
+                            type="text"
+                            class="form-control bg-dark text-light border-secondary"
+                            id="desarrollador"
+                            name="desarrollador"
+                            required
+                            value="{{ juego['Desarrollador'] if juego and juego['Desarrollador'] else '' }}"
+                            placeholder="Ej: Team Cherry"
+                        >
+                        <div class="error-msg">Indicá el estudio o desarrollador del juego.</div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label for="editor" class="form-label text-light fw-bold mb-1">Editor (Publisher)</label>
+                        <span class="hint-text">Dejar igual al desarrollador si es autopublicado.</span>
+                        <input
+                            type="text"
+                            class="form-control bg-dark text-light border-secondary"
+                            id="editor"
+                            name="editor"
+                            value="{{ juego['Editor'] if juego and juego['Editor'] else '' }}"
+                            placeholder="Ej: Devolver Digital"
+                        >
+                    </div>
+
+                    <!-- Precio, Descuento y Metacritic -->
+                    <div class="col-md-4">
+                        <label for="precio_usd" class="form-label text-light fw-bold mb-1">Precio Comercial ($ USD) *</label>
+                        <span class="hint-text">Colocar 0.00 si el juego es Free to Play.</span>
+                        <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max="999"
+                            required
+                            class="form-control bg-dark text-light border-secondary"
+                            id="precio_usd"
+                            name="precio_usd"
+                            value="{{ '%.2f'|format(juego['precio_usd']) if juego and juego['precio_usd'] is not none else '14.99' }}"
+                        >
+                        <div class="error-msg">Ingresá un precio válido mayor o igual a 0.</div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label for="descuento" class="form-label text-light fw-bold mb-1">Descuento Activo (%)</label>
+                        <span class="hint-text">Porcentaje de oferta entre 0% y 95%.</span>
+                        <input
+                            type="number"
+                            min="0"
+                            max="95"
+                            class="form-control bg-dark text-light border-secondary"
+                            id="descuento"
+                            name="descuento"
+                            value="{{ juego['Descuento']|int if juego and juego['Descuento'] else 0 }}"
+                        >
+                    </div>
+
+                    <div class="col-md-4">
+                        <label for="metacritic_score" class="form-label text-light fw-bold mb-1">Puntaje Metacritic (0-100)</label>
+                        <span class="hint-text">Opcional. Dejar vacío si aún no tiene reseña.</span>
+                        <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            class="form-control bg-dark text-light border-secondary"
+                            id="metacritic_score"
+                            name="metacritic_score"
+                            value="{{ juego['Metacritic_Score']|int if juego and juego['Metacritic_Score'] else '' }}"
+                            placeholder="Ej: 88"
+                        >
+                    </div>
+
+                    <!-- Plataformas Compatibles -->
+                    <div class="col-12">
+                        <label class="form-label text-light fw-bold d-block mb-2">Plataformas Soportadas</label>
+                        <div class="stat-box p-3 d-flex gap-4 flex-wrap">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="platforms_windows" name="platforms_windows" value="1"
+                                    {% if not juego or juego['Platforms_Windows'] == 1 or juego['Platforms_Windows'] == 1.0 %}checked{% endif %}>
+                                <label class="form-check-label text-light" for="platforms_windows">🪟 Windows</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="platforms_mac" name="platforms_mac" value="1"
+                                    {% if juego and (juego['Platforms_Mac'] == 1 or juego['Platforms_Mac'] == 1.0) %}checked{% endif %}>
+                                <label class="form-check-label text-light" for="platforms_mac">🍎 macOS</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="platforms_linux" name="platforms_linux" value="1"
+                                    {% if juego and (juego['Platforms_Linux'] == 1 or juego['Platforms_Linux'] == 1.0) %}checked{% endif %}>
+                                <label class="form-check-label text-light" for="platforms_linux">🐧 Linux</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Géneros -->
+                    {% set generos_actuales = juego['Generos'] if juego and juego['Generos'] else 'Independiente' %}
+                    <div class="col-md-6">
+                        <label class="form-label text-light fw-bold d-block mb-1">Géneros del Juego</label>
+                        <span class="hint-text mb-2">Seleccioná uno o más géneros aplicables.</span>
+                        <div class="stat-box p-3" style="max-height: 220px; overflow-y: auto;">
+                            <div class="row g-2">
+                                {% for gen in generos_lista %}
+                                <div class="col-sm-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="generos" id="gen_{{ loop.index }}" value="{{ gen }}"
+                                            {% if gen in generos_actuales %}checked{% endif %}>
+                                        <label class="form-check-label small text-light" for="gen_{{ loop.index }}">{{ gen }}</label>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Categorías -->
+                    {% set categorias_actuales = juego['Categorias'] if juego and juego['Categorias'] else 'Un Jugador' %}
+                    <div class="col-md-6">
+                        <label class="form-label text-light fw-bold d-block mb-1">Categorías y Modos de Juego</label>
+                        <span class="hint-text mb-2">Seleccioná las características técnicas del título.</span>
+                        <div class="stat-box p-3" style="max-height: 220px; overflow-y: auto;">
+                            <div class="row g-2">
+                                {% for cat in categorias_lista %}
+                                <div class="col-sm-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="categorias" id="cat_{{ loop.index }}" value="{{ cat }}"
+                                            {% if cat in categorias_actuales %}checked{% endif %}>
+                                        <label class="form-check-label small text-light" for="cat_{{ loop.index }}">{{ cat }}</label>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Descripción -->
+                    <div class="col-12">
+                        <label for="short_description" class="form-label text-light fw-bold mb-1">Descripción del Juego</label>
+                        <span class="hint-text">Resumen de la propuesta jugable e historia.</span>
+                        <textarea
+                            class="form-control bg-dark text-light border-secondary"
+                            id="short_description"
+                            name="short_description"
+                            rows="3"
+                            placeholder="Describí las mecánicas principales y ambientación del juego..."
+                        >{{ juego['Short_Description'] if juego and juego['Short_Description'] else '' }}</textarea>
+                    </div>
+
+                    <!-- Idiomas -->
+                    {% set col_idiomas = juego['Idiomas '] if juego and 'Idiomas ' in juego.keys() else (juego['Idiomas'] if juego and 'Idiomas' in juego.keys() else 'Español, Inglés') %}
+                    <div class="col-12">
+                        <label for="idiomas" class="form-label text-light fw-bold mb-1">Idiomas Soportados</label>
+                        <input
+                            type="text"
+                            class="form-control bg-dark text-light border-secondary"
+                            id="idiomas"
+                            name="idiomas"
+                            value="{{ col_idiomas if col_idiomas else 'Español, Inglés' }}"
+                        >
+                    </div>
+
+                    <!-- Botones de Acción -->
+                    <div class="col-12 d-flex justify-content-end gap-2 pt-3 border-top border-secondary">
+                        <a href="{% if modo == 'edicion' and juego %}/juego/{{ juego['ID_Juego'] }}{% else %}/{% endif %}" class="btn btn-outline-secondary px-4">
+                            Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-success fw-bold px-4">
+                            {% if modo == 'alta' %}💾 Dar de Alta en Catálogo{% else %}💾 Guardar Cambios{% endif %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </article>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

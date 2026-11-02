@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="es" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador y Comparador de Precios | DevPrice</title>
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/favicon.png') }}">
+    <!-- Bootstrap 5 CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #0d1117; color: #c9d1d9; }
+        .navbar-devprice { background-color: #161b22; border-bottom: 2px solid #238636; }
+        .card-custom { background-color: #161b22; border: 1px solid #30363d; }
+        .card-header-custom { background-color: #21262d; border-bottom: 1px solid #30363d; color: #58a6ff; }
+        .stat-box { background-color: #0d1117; border: 1px solid #30363d; border-radius: 0.5rem; }
+        .price-badge { background-color: #238636; color: #ffffff; font-size: 1rem; }
+        .private-banner { background-color: rgba(56, 139, 253, 0.1); border: 1px solid rgba(56, 139, 253, 0.4); color: #79c0ff; }
+        .hint-text { display: block; color: #8b949e; font-size: 0.8rem; margin-bottom: 0.25rem; }
+        .error-msg { display: none; color: #f85149; font-size: 0.82rem; margin-top: 0.25rem; }
+        input:user-invalid { border-color: #f85149 !important; background-color: rgba(248, 81, 73, 0.08) !important; }
+        input:user-invalid + .error-msg { display: block; }
+        input:user-valid { border-color: #238636 !important; }
+    </style>
+</head>
+<body>
+
+    <!-- Navegación Superior -->
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-devprice mb-4 shadow">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center gap-2 fw-bold fs-3 text-decoration-none" href="/">
+                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="DevPrice Logo" width="38" height="38" class="d-inline-block">
+                <span class="text-white">Dev<span style="color: #00e5ff;">Price</span></span>
+            </a>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <a href="/" class="btn btn-outline-light btn-sm">Catálogo Oficial</a>
+                <a href="/comparador" class="btn btn-info btn-sm fw-bold text-dark">🧮 Simulador de Precio</a>
+                {% if usuario and usuario.rol == 'admin' %}
+                    <a href="/juego/nuevo" class="btn btn-success btn-sm fw-bold">+ Nuevo Juego (ABM)</a>
+                {% endif %}
+                {% if usuario %}
+                    <span class="navbar-text mx-2 text-light small">
+                        <strong class="text-info">{{ usuario.email }}</strong>
+                        <span class="badge bg-secondary text-uppercase ms-1">{{ usuario.rol }}</span>
+                    </span>
+                    <a href="/logout" class="btn btn-outline-danger btn-sm fw-bold">Cerrar Sesión</a>
+                {% else %}
+                    <a href="/login" class="btn btn-success btn-sm fw-bold">Iniciar Sesión</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <main class="container pb-5">
+        <!-- Mensajes Flash -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Aviso de Herramienta Privada de Simulación -->
+        <div class="alert private-banner d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4" role="region" aria-label="Aviso de privacidad del simulador">
+            <div>
+                <strong>🔒 Espacio de Simulación Privado para Desarrolladores:</strong>
+                Los datos que cargues acá sirven exclusivamente como herramienta de referencia para calcular y comparar el precio de tu proyecto contra el catálogo de Steam. <strong>No modifican la base de datos pública ni son visibles para otros usuarios.</strong>
+            </div>
+            {% if mi_juego %}
+            <form method="POST" action="/comparador" class="m-0">
+                <input type="hidden" name="accion" value="limpiar">
+                <button type="submit" class="btn btn-sm btn-outline-light">Limpiar mi simulación</button>
+            </form>
+            {% endif %}
+        </div>
+
+        <div class="row g-4">
+            <!-- Columna Izquierda: Formulario de Carga del Proyecto del Programador -->
+            <div class="col-lg-4">
+                <article class="card card-custom shadow-sm">
+                    <header class="card-header card-header-custom py-3">
+                        <h1 class="h5 mb-0 fw-bold">🚀 Cargar Mi Proyecto para Comparar</h1>
+                    </header>
+                    <div class="card-body p-4">
+                        <form method="POST" action="/comparador">
+                            <input type="hidden" name="accion" value="simular">
+
+                            <div class="mb-3">
+                                <label for="nombre_proyecto" class="form-label text-light fw-bold mb-1">Nombre de tu Juego *</label>
+                                <span class="hint-text">Nombre de tu proyecto en desarrollo (solo vos lo verás).</span>
+                                <input
+                                    type="text"
+                                    class="form-control bg-dark text-light border-secondary"
+                                    id="nombre_proyecto"
+                                    name="nombre_proyecto"
+                                    required
+                                    value="{{ mi_juego.nombre if mi_juego else '' }}"
+                                    placeholder="Ej: Cyber Gaucho 2099"
+                                >
+                                <div class="error-msg">Ingresá un nombre para identificar tu proyecto.</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="genero" class="form-label text-light fw-bold mb-1">Género Principal *</label>
+                                <span class="hint-text">Género con el que vas a competir en Steam.</span>
+                                <select class="form-select bg-dark text-light border-secondary" id="genero" name="genero">
+                                    {% for gen in generos_lista if gen != 'Free To Play' %}
+                                        <option value="{{ gen }}" {% if mi_juego and mi_juego.genero == gen %}selected{% elif not mi_juego and gen == 'Independiente' %}selected{% endif %}>
+                                            {{ gen }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="categoria" class="form-label text-light fw-bold mb-1">Categoría / Modo de Juego *</label>
+                                <span class="hint-text">Modalidad principal para filtrar referentes similares.</span>
+                                <select class="form-select bg-dark text-light border-secondary" id="categoria" name="categoria">
+                                    {% for cat in categorias_lista %}
+                                        <option value="{{ cat }}" {% if mi_juego and mi_juego.categoria == cat %}selected{% endif %}>
+                                            {{ cat }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="precio_propuesto" class="form-label text-light fw-bold mb-1">Precio Tentativo a Cobrar ($ USD) *</label>
+                                <span class="hint-text">Valor que tenés pensado pedir para evaluarlo frente al mercado.</span>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0.50"
+                                    max="200"
+                                    required
+                                    class="form-control bg-dark text-light border-secondary"
+                                    id="precio_propuesto"
+                                    name="precio_propuesto"
+                                    value="{{ '%.2f'|format(mi_juego.precio_propuesto) if mi_juego else '14.99' }}"
+                                >
+                                <div class="error-msg">Ingresá un precio entre $0.50 y $200.00 USD.</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label text-light fw-bold d-block mb-1">Plataformas Objetivo</label>
+                                <div class="stat-box p-2 px-3 d-flex gap-3 flex-wrap">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="plat_win" name="plat_win" value="1"
+                                            {% if not mi_juego or 'Windows' in mi_juego.plataformas %}checked{% endif %}>
+                                        <label class="form-check-label small text-light" for="plat_win">Windows</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="plat_mac" name="plat_mac" value="1"
+                                            {% if mi_juego and 'macOS' in mi_juego.plataformas %}checked{% endif %}>
+                                        <label class="form-check-label small text-light" for="plat_mac">macOS</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="plat_linux" name="plat_linux" value="1"
+                                            {% if mi_juego and 'Linux' in mi_juego.plataformas %}checked{% endif %}>
+                                        <label class="form-check-label small text-light" for="plat_linux">Linux</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mb-4">
+                                <label for="descripcion" class="form-label text-light fw-bold mb-1">Notas de tu Proyecto (Opcional)</label>
+                                <textarea
+                                    class="form-control bg-dark text-light border-secondary"
+                                    id="descripcion"
+                                    name="descripcion"
+                                    rows="2"
+                                    placeholder="Duración estimada, propuesta de valor..."
+                                >{{ mi_juego.descripcion if mi_juego else '' }}</textarea>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary w-100 fw-bold py-2">
+                                📊 Comparar Precio con la Categoría
+                            </button>
+                        </form>
+                    </div>
+                </article>
+            </div>
+
+            <!-- Columna Derecha: Resultados de la Comparación con el Mercado -->
+            <div class="col-lg-8">
+                {% if mi_juego and analisis %}
+                    <!-- Resumen del Proyecto Simulado y Diagnóstico -->
+                    <article class="card card-custom shadow-sm mb-4">
+                        <header class="card-header card-header-custom d-flex justify-content-between align-items-center flex-wrap gap-2 py-3">
+                            <div>
+                                <span class="badge bg-info text-dark me-2">Borrador Privado</span>
+                                <strong class="text-white fs-5">{{ mi_juego.nombre }}</strong>
+                            </div>
+                            <span class="badge bg-secondary">
+                                {{ mi_juego.genero }} • {{ mi_juego.categoria }} ({{ "{:,}".format(analisis.total_competidores) }} juegos analizados)
+                            </span>
+                        </header>
+
+                        <div class="card-body p-4">
+                            <!-- Tarjetas de Precios de Referencia -->
+                            <div class="row g-3 mb-4 text-center">
+                                <div class="col-sm-6 col-md-3">
+                                    <div class="stat-box p-3 h-100 border-primary">
+                                        <span class="small text-info d-block mb-1 fw-bold">Tu Precio Propuesto</span>
+                                        <div class="fs-3 fw-bold text-white">${{ "%.2f"|format(mi_juego.precio_propuesto) }}</div>
+                                        <small class="text-secondary">{{ mi_juego.plataformas|join(', ') }}</small>
+                                    </div>
+                                </div>
+                                <div class="col-sm-6 col-md-3">
+                                    <div class="stat-box p-3 h-100 border-success">
+                                        <span class="small text-success d-block mb-1 fw-bold">Mediana Recomendada</span>
+                                        <div class="fs-3 fw-bold text-success">${{ "%.2f"|format(analisis.mediana) }}</div>
+                                        <small class="text-secondary">Valor central del segmento</small>
+                                    </div>
+                                </div>
+                                <div class="col-sm-6 col-md-3">
+                                    <div class="stat-box p-3 h-100">
+                                        <span class="small text-secondary d-block mb-1">Promedio Categoría</span>
+                                        <div class="fs-3 fw-bold text-light">${{ "%.2f"|format(analisis.promedio) }}</div>
+                                        <small class="text-secondary">Media aritmética</small>
+                                    </div>
+                                </div>
+                                <div class="col-sm-6 col-md-3">
+                                    <div class="stat-box p-3 h-100">
+                                        <span class="small text-secondary d-block mb-1">Franja Competitiva</span>
+                                        <div class="fs-5 fw-bold text-warning mt-1">${{ "%.2f"|format(analisis.p25) }} - ${{ "%.2f"|format(analisis.p75) }}</div>
+                                        <small class="text-secondary">Percentil 25% al 75%</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Diagnóstico Automático -->
+                            <div class="alert alert-{{ analisis.color_segmento }} bg-opacity-10 border-{{ analisis.color_segmento }} mb-4">
+                                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-1">
+                                    <strong class="fs-6">Diagnóstico de Posicionamiento: {{ analisis.segmento }}</strong>
+                                    <span class="badge bg-{{ analisis.color_segmento }} text-dark">
+                                        {% if analisis.dif_mediana > 0 %}
+                                            +${{ "%.2f"|format(analisis.dif_mediana) }} (+{{ analisis.pct_vs_mediana }}%) vs. Mediana
+                                        {% elif analisis.dif_mediana < 0 %}
+                                            -${{ "%.2f"|format(analisis.dif_mediana|abs) }} ({{ analisis.pct_vs_mediana }}%) vs. Mediana
+                                        {% else %}
+                                            Exactamente en la Mediana de la categoría
+                                        {% endif %}
+                                    </span>
+                                </div>
+                                <p class="mb-0 small text-light">{{ analisis.recomendacion }}</p>
+                            </div>
+
+                            <!-- Termómetro Visual de Posicionamiento (Escala vs Mediana y Cuartiles) -->
+                            <div class="stat-box p-3 mb-4">
+                                <div class="d-flex justify-content-between align-items-center flex-wrap mb-2">
+                                    <strong class="small text-info">📍 Posición de tu Precio frente a la Mediana y Franja Competitiva</strong>
+                                    <span class="badge bg-dark border border-secondary text-light">
+                                        Percentil {{ analisis.percentil_usuario }}% de la categoría
+                                    </span>
+                                </div>
+
+                                <div class="position-relative my-4 pt-3 pb-2">
+                                    <!-- Barra base -->
+                                    <div class="w-100 rounded-pill position-relative" style="height: 14px; background-color: #21262d; border: 1px solid #30363d;">
+                                        <!-- Franja competitiva (P25 a P75) -->
+                                        <div
+                                            class="position-absolute top-0 bottom-0 rounded-pill"
+                                            style="left: {{ analisis.pos_p25 }}%; width: {{ (analisis.pos_p75 - analisis.pos_p25) if analisis.pos_p75 > analisis.pos_p25 else 5 }}%; background-color: rgba(35, 134, 54, 0.45); border: 1px solid #2ea043;"
+                                            title="Franja Competitiva (P25: ${{ '%.2f'|format(analisis.p25) }} a P75: ${{ '%.2f'|format(analisis.p75) }})"
+                                        ></div>
+                                    </div>
+
+                                    <!-- Marcador de la Mediana -->
+                                    <div class="position-absolute text-center" style="left: {{ analisis.pos_mediana }}%; top: -4px; transform: translateX(-50%); z-index: 2;">
+                                        <span class="badge bg-success shadow-sm" style="font-size: 0.72rem;">Mediana ${{ "%.2f"|format(analisis.mediana) }}</span>
+                                        <div class="mx-auto bg-success" style="width: 3px; height: 22px;"></div>
+                                    </div>
+
+                                    <!-- Marcador del Precio del Programador -->
+                                    <div class="position-absolute text-center" style="left: {{ analisis.pos_tu_precio }}%; bottom: -18px; transform: translateX(-50%); z-index: 3;">
+                                        <div class="mx-auto bg-info" style="width: 3px; height: 20px;"></div>
+                                        <span class="badge bg-info text-dark fw-bold shadow" style="font-size: 0.75rem;">🎮 Tu Juego ${{ "%.2f"|format(mi_juego.precio_propuesto) }}</span>
+                                    </div>
+                                </div>
+
+                                <div class="d-flex justify-content-between small text-secondary mt-3 pt-2 border-top border-secondary">
+                                    <span>Mín: ${{ "%.2f"|format(analisis.min_p) }}</span>
+                                    <span>P25 (Económico): ${{ "%.2f"|format(analisis.p25) }}</span>
+                                    <span class="text-success fw-bold">Mediana: ${{ "%.2f"|format(analisis.mediana) }}</span>
+                                    <span>P75 (Premium): ${{ "%.2f"|format(analisis.p75) }}</span>
+                                </div>
+                            </div>
+
+                            <!-- Gráfico Interactivo (Chart.js): Tu Juego vs Mediana y Referentes -->
+                            <div class="stat-box p-3">
+                                <div class="d-flex justify-content-between align-items-center flex-wrap mb-2">
+                                    <strong class="small text-light">📊 Gráfico Comparativo: Tu Precio vs. Mediana y Juegos Referentes ($ USD)</strong>
+                                    <small class="text-secondary">Línea verde punteada = Mediana (${{ "%.2f"|format(analisis.mediana) }})</small>
+                                </div>
+                                <div style="position: relative; height: 310px; width: 100%;">
+                                    <canvas id="graficoComparativo"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+
+                    <!-- Tabla de Juegos Referentes de la misma Categoría -->
+                    <article class="card card-custom shadow-sm">
+                        <header class="card-header card-header-custom py-3 d-flex justify-content-between align-items-center flex-wrap">
+                            <h2 class="h6 mb-0 fw-bold">
+                                🏆 Referentes Reales de {{ mi_juego.genero }} ({{ mi_juego.categoria }}) en Steam
+                            </h2>
+                            <span class="small text-secondary">Comparación directa contra tus ${{ "%.2f"|format(mi_juego.precio_propuesto) }}</span>
+                        </header>
+
+                        <div class="table-responsive">
+                            <table class="table table-dark table-hover align-middle mb-0">
+                                <thead style="background-color: #21262d; color: #58a6ff;">
+                                    <tr>
+                                        <th>Juego Referente</th>
+                                        <th>Ventas Estimadas</th>
+                                        <th>Precio Steam</th>
+                                        <th>Diferencia con Tu Juego</th>
+                                        <th class="text-end">Ficha</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for ref in referentes %}
+                                    {% set dif = mi_juego.precio_propuesto - ref['precio_usd'] %}
+                                    <tr>
+                                        <td>
+                                            <div class="fw-bold text-white">{{ ref['Nombre'] }}</div>
+                                            <small class="text-secondary">{{ ref['Desarrollador'] }}</small>
+                                        </td>
+                                        <td class="small text-secondary">{{ ref['Propietarios'] }}</td>
+                                        <td>
+                                            <span class="badge price-badge">${{ "%.2f"|format(ref['precio_usd']) }}</span>
+                                        </td>
+                                        <td>
+                                            {% if dif < -0.01 %}
+                                                <span class="badge bg-info bg-opacity-25 text-info border border-info">
+                                                    Tu juego es ${{ "%.2f"|format(dif|abs) }} más barato
+                                                </span>
+                                            {% elif dif > 0.01 %}
+                                                <span class="badge bg-warning bg-opacity-25 text-warning border border-warning">
+                                                    Tu juego es ${{ "%.2f"|format(dif) }} más caro
+                                                </span>
+                                            {% else %}
+                                                <span class="badge bg-success">Mismo precio</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-end">
+                                            <a href="/juego/{{ ref['id'] }}" class="btn btn-sm btn-outline-info">Ver</a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </article>
+
+                {% else %}
+                    <!-- Estado Inicial Explicativo -->
+                    <article class="card card-custom shadow-sm h-100 d-flex justify-content-center">
+                        <div class="card-body p-5 text-center">
+                            <div class="display-4 mb-3">🧮</div>
+                            <h2 class="h4 text-white fw-bold mb-3">Simulá el Precio de Lanzamiento de tu Videojuego</h2>
+                            <p class="text-secondary col-lg-9 mx-auto mb-4">
+                                Completá el formulario de la izquierda con el género, modalidad y precio tentativo de tu juego.
+                                El sistema analizará los más de <strong>23.100 registros de Steam</strong> para indicarte la
+                                <strong>mediana recomendada</strong>, el <strong>rango competitivo (Percentiles 25% y 75%)</strong>
+                                y una comparativa mano a mano con los referentes de tu misma categoría, sin guardar tu juego en la base pública.
+                            </p>
+                            <div class="row g-3 text-start mt-2">
+                                <div class="col-md-4">
+                                    <div class="stat-box p-3 h-100">
+                                        <strong class="text-info d-block mb-1">1. Carga Privada</strong>
+                                        <span class="small text-secondary">Tus pruebas quedan guardadas solo en tu sesión activa. Nadie más las ve en el catálogo.</span>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="stat-box p-3 h-100">
+                                        <strong class="text-success d-block mb-1">2. Rango de Mercado</strong>
+                                        <span class="small text-secondary">Conocé el precio promedio, la mediana real y las franjas económica y premium de tu género.</span>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="stat-box p-3 h-100">
+                                        <strong class="text-warning d-block mb-1">3. Referentes Directos</strong>
+                                        <span class="small text-secondary">Compará cuánto más caro o barato quedás frente a los líderes de tu categoría.</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+                {% endif %}
+            </div>
+        </div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    {% if mi_juego and analisis %}
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script>
+        (function() {
+            const canvas = document.getElementById('graficoComparativo')
+            if (!canvas) return
+
+            const labels = [
+                'P25 (Económico)',
+                'Mediana Categoría',
+                '🎮 {{ mi_juego.nombre | replace("'", "\\'") }}',
+                'Promedio Categoría',
+                'P75 (Premium)'
+                {% for ref in referentes[:5] %}
+                , '{{ ref["Nombre"][:20] | replace("'", "\\'") }}'
+                {% endfor %}
+            ]
+
+            const valores = [
+                {{ analisis.p25 }},
+                {{ analisis.mediana }},
+                {{ mi_juego.precio_propuesto }},
+                {{ analisis.promedio }},
+                {{ analisis.p75 }}
+                {% for ref in referentes[:5] %}
+                , {{ ref['precio_usd'] }}
+                {% endfor %}
+            ]
+
+            const coloresFondo = [
+                'rgba(139, 148, 158, 0.45)',
+                'rgba(35, 134, 54, 0.85)',
+                'rgba(88, 166, 255, 0.95)',
+                'rgba(210, 153, 34, 0.65)',
+                'rgba(139, 148, 158, 0.45)'
+                {% for ref in referentes[:5] %}
+                , 'rgba(48, 54, 61, 0.85)'
+                {% endfor %}
+            ]
+
+            const coloresBorde = [
+                '#8b949e',
+                '#2ea043',
+                '#58a6ff',
+                '#d29922',
+                '#8b949e'
+                {% for ref in referentes[:5] %}
+                , '#6e7681'
+                {% endfor %}
+            ]
+
+            const lineaMediana = labels.map(() => {{ analisis.mediana }})
+            const lineaTuPrecio = labels.map(() => {{ mi_juego.precio_propuesto }})
+
+            new Chart(canvas, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            type: 'line',
+                            label: 'Línea Mediana (${{ "%.2f"|format(analisis.mediana) }})',
+                            data: lineaMediana,
+                            borderColor: '#2ea043',
+                            borderWidth: 2,
+                            borderDash: [6, 4],
+                            pointRadius: 0,
+                            fill: false,
+                            order: 1
+                        },
+                        {
+                            type: 'line',
+                            label: 'Tu Precio (${{ "%.2f"|format(mi_juego.precio_propuesto) }})',
+                            data: lineaTuPrecio,
+                            borderColor: '#58a6ff',
+                            borderWidth: 2,
+                            borderDash: [3, 3],
+                            pointRadius: 0,
+                            fill: false,
+                            order: 2
+                        },
+                        {
+                            type: 'bar',
+                            label: 'Precio ($ USD)',
+                            data: valores,
+                            backgroundColor: coloresFondo,
+                            borderColor: coloresBorde,
+                            borderWidth: 1.5,
+                            borderRadius: 6,
+                            order: 3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#c9d1d9', font: { size: 12 } }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(ctx) {
+                                    return ctx.dataset.label + ': $' + Number(ctx.parsed.y).toFixed(2) + ' USD'
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#c9d1d9', maxRotation: 25, minRotation: 0 },
+                            grid: { color: 'rgba(48, 54, 61, 0.4)' }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                color: '#8b949e',
+                                callback: function(val) { return '$' + val }
+                            },
+                            grid: { color: 'rgba(48, 54, 61, 0.6)' }
+                        }
+                    }
+                }
+            })
+        })()
+    </script>
+    {% endif %}
+</body>
+</html>
