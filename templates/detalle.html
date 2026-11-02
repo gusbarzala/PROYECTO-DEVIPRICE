@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="es" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% set id_juego = juego['ID_Juego'] if 'ID_Juego' in juego.keys() else juego['id'] %}
+    {% set nombre = juego['Nombre'] if 'Nombre' in juego.keys() and juego['Nombre'] else 'Juego #' ~ id_juego %}
+    <title>{{ nombre }} - Detalle | DevPrice</title>
+    <!-- Bootstrap 5 CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #0d1117; color: #c9d1d9; }
+        .navbar-devprice { background-color: #161b22; border-bottom: 2px solid #238636; }
+        .card-custom { background-color: #161b22; border: 1px solid #30363d; }
+        .card-header-custom { background-color: #21262d; border-bottom: 1px solid #30363d; color: #58a6ff; }
+        .price-badge { background-color: #238636; color: #ffffff; font-size: 1.5rem; }
+        .discount-badge { background-color: #1f6feb; color: #ffffff; font-size: 0.95rem; }
+        .stat-box { background-color: #0d1117; border: 1px solid #30363d; border-radius: 0.5rem; }
+        .tag-badge { background-color: #21262d; border: 1px solid #30363d; color: #8b949e; font-weight: 500; }
+        .genre-badge { background-color: rgba(56, 139, 253, 0.15); border: 1px solid rgba(56, 139, 253, 0.4); color: #58a6ff; }
+        .game-banner {
+            width: 100%;
+            aspect-ratio: 460 / 215;
+            object-fit: cover;
+            border-bottom: 1px solid #30363d;
+            background-color: #0d1117;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Navegación Superior -->
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-devprice mb-4 shadow">
+        <div class="container">
+            <a class="navbar-brand fw-bold text-success fs-3" href="/">🎮 DevPrice</a>
+            <div class="d-flex align-items-center">
+                {% if usuario %}
+                    <span class="navbar-text me-3 text-light">Usuario: <strong class="text-info">{{ usuario.email }}</strong> ({{ usuario.rol }})</span>
+                    <a href="/logout" class="btn btn-outline-danger btn-sm fw-bold">Cerrar Sesión</a>
+                {% else %}
+                    <a href="/login" class="btn btn-success btn-sm fw-bold">Iniciar Sesión</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <main class="container pb-5">
+        <!-- Botón de regreso y ruta de navegación -->
+        <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+            <a href="/" class="btn btn-outline-secondary btn-sm fw-bold">
+                &larr; Volver al Catálogo
+            </a>
+            <span class="text-secondary small">
+                Steam App ID: <strong class="text-light">#{{ id_juego }}</strong>
+            </span>
+        </div>
+
+        <!-- Ficha Principal del Juego -->
+        <div class="row g-4">
+            <!-- Columna Izquierda: Información General, Descripción y Etiquetas -->
+            <div class="col-lg-8">
+                <article class="card card-custom shadow-sm h-100">
+                    <div class="card-body p-4">
+                        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+                            <div>
+                                <h1 class="h2 fw-bold text-white mb-1">{{ nombre }}</h1>
+                                <p class="text-secondary mb-0">
+                                    Lanzamiento: <strong class="text-light">{{ juego['Release_Date'] if juego['Release_Date'] else 'No especificado' }}</strong>
+                                    <span class="mx-2">|</span>
+                                    Edad requerida:
+                                    {% if juego['Required_Age'] and juego['Required_Age']|int > 0 %}
+                                        <span class="badge bg-warning text-dark">+{{ juego['Required_Age']|int }} años</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">ATP (Todas las edades)</span>
+                                    {% endif %}
+                                </p>
+                            </div>
+                            {% if juego['Metacritic_Score'] and juego['Metacritic_Score']|int > 0 %}
+                                {% set mc = juego['Metacritic_Score']|int %}
+                                <div class="text-center p-2 rounded border {% if mc >= 75 %}border-success bg-success bg-opacity-10 text-success{% elif mc >= 50 %}border-warning bg-warning bg-opacity-10 text-warning{% else %}border-danger bg-danger bg-opacity-10 text-danger{% endif %}" style="min-width: 90px;">
+                                    <div class="fs-4 fw-bold lh-1">{{ mc }}</div>
+                                    <small class=" d-block mt-1" style="font-size: 0.7rem;">METACRITIC</small>
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Géneros -->
+                        {% if juego['Generos'] %}
+                        <div class="mb-4 d-flex flex-wrap gap-2">
+                            {% for genero in juego['Generos'].split(',') %}
+                                <span class="badge genre-badge px-2 py-1">{{ genero.strip() }}</span>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+
+                        <!-- Descripción Corta -->
+                        <h2 class="h5 text-info fw-bold border-bottom border-secondary pb-2 mb-3">Descripción del Juego</h2>
+                        <p class="text-light lh-lg mb-4">
+                            {{ juego['Short_Description'] if juego['Short_Description'] else 'Sin descripción disponible en el catálogo.' }}
+                        </p>
+
+                        <!-- Desarrollador y Editor -->
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <div class="stat-box p-3 h-100">
+                                    <span class="text-secondary small d-block mb-1">Desarrollador</span>
+                                    <strong class="text-white">{{ juego['Desarrollador'] if juego['Desarrollador'] else 'No informado' }}</strong>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="stat-box p-3 h-100">
+                                    <span class="text-secondary small d-block mb-1">Editor (Publisher)</span>
+                                    <strong class="text-white">{{ juego['Editor'] if juego['Editor'] else 'No informado' }}</strong>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Categorías y Características -->
+                        {% if juego['Categorias'] %}
+                        <h2 class="h6 text-info fw-bold mb-2">Categorías y Funcionalidades de Steam</h2>
+                        <div class="d-flex flex-wrap gap-1 mb-4">
+                            {% for cat in juego['Categorias'].split(',') %}
+                                <span class="badge tag-badge">{{ cat.strip() }}</span>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+
+                        <!-- Idiomas -->
+                        {% set col_idiomas = juego['Idiomas '] if 'Idiomas ' in juego.keys() else (juego['Idiomas'] if 'Idiomas' in juego.keys() else None) %}
+                        {% if col_idiomas %}
+                        <h2 class="h6 text-info fw-bold mb-2">Idiomas Soportados</h2>
+                        <p class="small text-secondary mb-0 stat-box p-3">
+                            {{ col_idiomas | replace('<br>', ' • ') | replace('<strong>*</strong>', '') }}
+                        </p>
+                        {% endif %}
+                    </div>
+                </article>
+            </div>
+
+            <!-- Columna Derecha: Portada, Precio, Plataformas y Métricas -->
+            <div class="col-lg-4">
+                <article class="card card-custom shadow-sm overflow-hidden mb-4">
+                    <img
+                        src="https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/{{ id_juego }}/header.jpg"
+                        alt="Portada de {{ nombre }}"
+                        class="game-banner"
+                        onerror="this.style.display='none'"
+                    >
+                    <div class="card-body p-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <span class="text-secondary fw-bold">Precio en Catálogo</span>
+                            <div class="text-end">
+                                {% set raw_price = juego['Precio']|float if juego['Precio'] is not none and juego['Precio'] != '' else 0 %}
+                                {% set usd_price = juego['precio_usd'] if 'precio_usd' in juego.keys() and juego['precio_usd'] is not none else (raw_price / 100.0) %}
+                                {% set raw_ini = juego['Precio_Inicial']|float if juego['Precio_Inicial'] is not none and juego['Precio_Inicial'] != '' else 0 %}
+                                {% set usd_ini = juego['precio_inicial_usd'] if 'precio_inicial_usd' in juego.keys() and juego['precio_inicial_usd'] is not none else (raw_ini / 100.0) %}
+                                {% if juego['Is_Free'] == 1 or juego['Is_Free'] == 1.0 or usd_price <= 0 %}
+                                    <span class="badge price-badge">Gratis (F2P)</span>
+                                {% else %}
+                                    {% if juego['Descuento'] and juego['Descuento']|int > 0 %}
+                                        <span class="badge discount-badge me-1">-{{ juego['Descuento']|int }}%</span>
+                                        <del class="text-secondary small me-1">${{ "%.2f"|format(usd_ini) }}</del>
+                                    {% endif %}
+                                    <span class="badge price-badge">${{ "%.2f"|format(usd_price) }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Plataformas compatibles -->
+                        <div class="stat-box p-3 mb-3">
+                            <span class="text-secondary small d-block mb-2">Plataformas Compatibles</span>
+                            <div class="d-flex gap-2 flex-wrap">
+                                {% if juego['Platforms_Windows'] == 1 or juego['Platforms_Windows'] == 1.0 %}
+                                    <span class="badge bg-primary bg-opacity-25 text-info border border-info">🪟 Windows</span>
+                                {% endif %}
+                                {% if juego['Platforms_Mac'] == 1 or juego['Platforms_Mac'] == 1.0 %}
+                                    <span class="badge bg-light bg-opacity-10 text-light border border-secondary">🍎 macOS</span>
+                                {% endif %}
+                                {% if juego['Platforms_Linux'] == 1 or juego['Platforms_Linux'] == 1.0 %}
+                                    <span class="badge bg-warning bg-opacity-10 text-warning border border-warning">🐧 Linux</span>
+                                {% endif %}
+                                {% if not (juego['Platforms_Windows'] or juego['Platforms_Mac'] or juego['Platforms_Linux']) %}
+                                    <span class="text-secondary small">No especificadas</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <a href="https://store.steampowered.com/app/{{ id_juego }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-info w-100 fw-bold">
+                            Ver en Tienda de Steam &nearr;
+                        </a>
+                    </div>
+                </article>
+
+                <!-- Tarjeta de Métricas y Comunidad -->
+                <article class="card card-custom shadow-sm">
+                    <header class="card-header card-header-custom fw-bold py-3">
+                        📊 Indicadores y Recepción
+                    </header>
+                    <div class="card-body p-4">
+                        {% set pos = juego['Positiva']|int if juego['Positiva'] else 0 %}
+                        {% set neg = juego['Negativa']|int if juego['Negativa'] else 0 %}
+                        {% set total_rev = pos + neg %}
+                        {% set pct_pos = ((pos / total_rev) * 100)|round(1) if total_rev > 0 else 0 %}
+
+                        <!-- Barra de Valoraciones -->
+                        <div class="mb-4">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="small text-secondary">Valoración de Usuarios</span>
+                                <strong class="{% if pct_pos >= 70 %}text-success{% elif pct_pos >= 40 %}text-warning{% else %}text-danger{% endif %}">
+                                    {{ pct_pos }}% Positivas
+                                </strong>
+                            </div>
+                            <div class="progress bg-danger bg-opacity-25" style="height: 10px;">
+                                <div class="progress-bar bg-success" role="progressbar" style="width: {{ pct_pos }}%" aria-valuenow="{{ pct_pos }}" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                            <div class="d-flex justify-content-between small mt-2">
+                                <span class="text-success">👍 {{ "{:,}".format(pos) }} positivas</span>
+                                <span class="text-danger">👎 {{ "{:,}".format(neg) }} negativas</span>
+                            </div>
+                        </div>
+
+                        <!-- Grilla de Estadísticas -->
+                        <div class="row g-2">
+                            <div class="col-12">
+                                <div class="stat-box p-2 px-3 d-flex justify-content-between align-items-center">
+                                    <span class="small text-secondary">Propietarios estimados</span>
+                                    <strong class="text-white small">{{ juego['Propietarios'] if juego['Propietarios'] else 'N/D' }}</strong>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="stat-box p-2 px-3 d-flex justify-content-between align-items-center">
+                                    <span class="small text-secondary">Jugadores simultáneos</span>
+                                    <strong class="text-info">{{ "{:,}".format(juego['Jugadores_Simultaneos']|int) if juego['Jugadores_Simultaneos'] is not none else '0' }}</strong>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="stat-box p-2 px-3">
+                                    <span class="small text-secondary d-block">Recomendaciones</span>
+                                    <strong class="text-white">{{ "{:,}".format(juego['Recommendations']|int) if juego['Recommendations'] else '0' }}</strong>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="stat-box p-2 px-3">
+                                    <span class="small text-secondary d-block">Logros Steam</span>
+                                    <strong class="text-white">{{ juego['Logros']|int if juego['Logros'] else '0' }}</strong>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="stat-box p-2 px-3">
+                                    <span class="small text-secondary d-block">Promedio histórico</span>
+                                    <strong class="text-white">{{ juego['Average_Forever']|int if juego['Average_Forever'] else '0' }} min</strong>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="stat-box p-2 px-3">
+                                    <span class="small text-secondary d-block">Mediana histórica</span>
+                                    <strong class="text-white">{{ juego['Median_Forever']|int if juego['Median_Forever'] else '0' }} min</strong>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

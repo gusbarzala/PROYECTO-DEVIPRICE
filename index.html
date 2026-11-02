@@ -12,7 +12,9 @@
         .card-custom { background-color: #161b22; border: 1px solid #30363d; }
         .table-custom { color: #c9d1d9; vertical-align: middle; }
         .table-custom thead { background-color: #21262d; color: #58a6ff; }
-        .price-badge { background-color: #238636; color: #ffffff; font-size: 1rem; }
+        .price-badge { background-color: #238636; color: #ffffff; font-size: 0.95rem; }
+        .free-badge { background-color: #1f6feb; color: #ffffff; font-size: 0.85rem; }
+        .genre-pill { background-color: #21262d; border: 1px solid #30363d; color: #8b949e; font-size: 0.75rem; font-weight: 500; }
     </style>
 </head>
 <body>
@@ -45,28 +47,68 @@
             {% endif %}
         {% endwith %}
 
-        <!-- Panel de Filtros -->
+        <!-- Panel de Filtros y Ordenamiento -->
         <div class="card card-custom p-3 mb-4 shadow-sm">
             <form method="GET" action="/" class="row g-3 align-items-end">
-                <div class="col-md-5">
+                <div class="col-lg-3 col-md-6">
                     <label for="q" class="form-label text-light fw-bold">Buscar juego</label>
-                    <input type="text" class="form-control bg-dark text-light border-secondary" id="q" name="q" value="{{ q }}" placeholder="Ej: Counter-Strike, Portal, Dota...">
+                    <input type="text" class="form-control bg-dark text-light border-secondary" id="q" name="q" value="{{ q }}" placeholder="Ej: Elden Ring, Terraria, Rust...">
                 </div>
-                <div class="col-md-4">
-                    <label for="max_price" class="form-label text-light fw-bold">Precio máximo ($)</label>
-                    <input type="number" step="0.01" class="form-control bg-dark text-light border-secondary" id="max_price" name="max_price" value="{{ max_price if max_price is not none else '' }}" placeholder="Ej: 15.00">
+
+                <div class="col-lg-3 col-md-6">
+                    <label for="categoria" class="form-label text-light fw-bold">Categoría / Género</label>
+                    <select class="form-select bg-dark text-light border-secondary" id="categoria" name="categoria">
+                        <option value="">Todas las categorías</option>
+                        {% if generos_lista %}
+                        <optgroup label="Géneros Principales">
+                            {% for gen in generos_lista %}
+                                <option value="{{ gen }}" {% if categoria == gen %}selected{% endif %}>{{ gen }}</option>
+                            {% endfor %}
+                        </optgroup>
+                        {% endif %}
+                        {% if categorias_lista %}
+                        <optgroup label="Categorías y Modos de Juego">
+                            {% for cat in categorias_lista %}
+                                <option value="{{ cat }}" {% if categoria == cat %}selected{% endif %}>{{ cat }}</option>
+                            {% endfor %}
+                        </optgroup>
+                        {% endif %}
+                    </select>
                 </div>
-                <div class="col-md-3 d-flex gap-2">
-                    <button type="submit" class="btn btn-primary w-100 fw-bold">Filtrar</button>
+
+                <div class="col-lg-2 col-md-4">
+                    <label for="max_price" class="form-label text-light fw-bold">Precio máx. ($)</label>
+                    <input type="number" step="0.01" min="0" class="form-control bg-dark text-light border-secondary" id="max_price" name="max_price" value="{{ max_price if max_price is not none else '' }}" placeholder="Ej: 15.00">
+                </div>
+
+                <div class="col-lg-2 col-md-4">
+                    <label for="orden" class="form-label text-light fw-bold">Ordenar por</label>
+                    <select class="form-select bg-dark text-light border-secondary" id="orden" name="orden">
+                        <option value="ventas" {% if orden == 'ventas' %}selected{% endif %}>Más vendidos (Propietarios)</option>
+                        <option value="popularidad" {% if orden == 'popularidad' %}selected{% endif %}>Popularidad (Reseñas +)</option>
+                        <option value="precio_asc" {% if orden == 'precio_asc' %}selected{% endif %}>Precio: Menor a Mayor</option>
+                        <option value="precio_desc" {% if orden == 'precio_desc' %}selected{% endif %}>Precio: Mayor a Menor</option>
+                        <option value="nombre_asc" {% if orden == 'nombre_asc' %}selected{% endif %}>Nombre: A - Z</option>
+                        <option value="nombre_desc" {% if orden == 'nombre_desc' %}selected{% endif %}>Nombre: Z - A</option>
+                    </select>
+                </div>
+
+                <div class="col-lg-2 col-md-4 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary w-100 fw-bold">Aplicar</button>
                     <a href="/" class="btn btn-outline-secondary">Limpiar</a>
                 </div>
             </form>
         </div>
 
         <!-- Indicador de total de registros -->
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h4 class="text-light mb-0">Catálogo Principal</h4>
-            <span class="badge bg-secondary fs-6">{{ total_juegos }} juegos registrados</span>
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+            <div>
+                <h4 class="text-light mb-0 d-inline-block me-2">Catálogo Principal</h4>
+                {% if categoria %}
+                    <span class="badge bg-info text-dark">Categoría: {{ categoria }}</span>
+                {% endif %}
+            </div>
+            <span class="badge bg-secondary fs-6">{{ "{:,}".format(total_juegos) }} juegos encontrados</span>
         </div>
 
         <!-- Tabla de Juegos -->
@@ -76,28 +118,47 @@
                 <thead>
                     <tr>
                         <th scope="col" style="width: 90px;">ID</th>
-                        <th scope="col">Nombre del Juego</th>
-                        <th scope="col" style="width: 160px;">Precio</th>
-                        <th scope="col" style="width: 140px;" class="text-end">Acción</th>
+                        <th scope="col">Nombre del Juego y Categorías</th>
+                        <th scope="col" style="width: 190px;">Ventas (Propietarios)</th>
+                        <th scope="col" style="width: 140px;">Popularidad</th>
+                        <th scope="col" style="width: 130px;">Precio</th>
+                        <th scope="col" style="width: 130px;" class="text-end">Acción</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for juego in juegos %}
+                    {% set id_juego = juego['ID_Juego'] if 'ID_Juego' in juego.keys() else juego['id'] %}
+                    {% set raw_price = juego[col_price] if col_price and juego[col_price] is not none else 0 %}
+                    {% set usd_price = juego['precio_usd'] if 'precio_usd' in juego.keys() and juego['precio_usd'] is not none else (raw_price|float / 100.0) %}
                     <tr>
-                        <td class="text-muted fw-bold">#{{ juego['id'] }}</td>
-                        <td class="fw-bold text-white">
-                            {{ juego[col_name] if col_name and juego[col_name] else juego['id'] }}
+                        <td class="text-muted fw-bold">#{{ id_juego }}</td>
+                        <td>
+                            <div class="fw-bold text-white">
+                                {{ juego[col_name] if col_name and juego[col_name] else id_juego }}
+                            </div>
+                            {% if juego['Generos'] %}
+                            <div class="d-flex flex-wrap gap-1 mt-1">
+                                {% for g in juego['Generos'].split(',')[:3] %}
+                                    <span class="badge genre-pill">{{ g.strip() }}</span>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td class="small text-secondary">
+                            {{ juego['Propietarios'] if juego['Propietarios'] else 'N/D' }}
+                        </td>
+                        <td class="small">
+                            <span class="text-success fw-semibold">👍 {{ "{:,}".format(juego['Positiva']|int) if juego['Positiva'] else '0' }}</span>
                         </td>
                         <td>
-                            {% set precio = juego[col_price] if col_price else None %}
-                            {% if precio is not none and precio != '' %}
-                                <span class="badge price-badge">${{ precio }}</span>
+                            {% if usd_price > 0 %}
+                                <span class="badge price-badge">${{ "%.2f"|format(usd_price) }}</span>
                             {% else %}
-                                <span class="badge bg-secondary">Sin precio</span>
+                                <span class="badge free-badge">Gratis (F2P)</span>
                             {% endif %}
                         </td>
                         <td class="text-end">
-                            <a href="/juego/{{ juego['id'] }}" class="btn btn-sm btn-outline-info">Ver Detalle</a>
+                            <a href="/juego/{{ id_juego }}" class="btn btn-sm btn-outline-info">Ver Detalle</a>
                         </td>
                     </tr>
                     {% endfor %}
@@ -110,13 +171,13 @@
         <nav class="mt-4">
             <ul class="pagination justify-content-center">
                 <li class="page-item {% if page <= 1 %}disabled{% endif %}">
-                    <a class="page-link bg-dark text-light border-secondary" href="/?page={{ page - 1 }}&q={{ q }}&max_price={{ max_price if max_price is not none else '' }}">Anterior</a>
+                    <a class="page-link bg-dark text-light border-secondary" href="/?page={{ page - 1 }}&q={{ q }}&categoria={{ categoria }}&orden={{ orden }}&max_price={{ max_price if max_price is not none else '' }}">Anterior</a>
                 </li>
                 <li class="page-item disabled">
                     <span class="page-link bg-secondary text-white border-secondary">Página {{ page }} de {{ total_paginas }}</span>
                 </li>
                 <li class="page-item {% if page >= total_paginas %}disabled{% endif %}">
-                    <a class="page-link bg-dark text-light border-secondary" href="/?page={{ page + 1 }}&q={{ q }}&max_price={{ max_price if max_price is not none else '' }}">Siguiente</a>
+                    <a class="page-link bg-dark text-light border-secondary" href="/?page={{ page + 1 }}&q={{ q }}&categoria={{ categoria }}&orden={{ orden }}&max_price={{ max_price if max_price is not none else '' }}">Siguiente</a>
                 </li>
             </ul>
         </nav>
