@@ -1,0 +1,370 @@
+/* ==========================================================================
+   DevPrice - Sistema de Transiciones y Micro-interacciones (Skill: animate)
+   Archivo desacoplado: si se desea desactivar, basta con quitar su <link>.
+   ========================================================================== */
+
+/* Polyfill tipográfico para que Windows renderice banderas emoji a todo color */
+@font-face {
+    font-family: "Twemoji Country Flags";
+    unicode-range: U+1F1E6-1F1FF, U+1F3F4, U+E0062-E0063, U+E0065, U+E0067, U+E006C, U+E006E, U+E0073-E0074, U+E0077, U+E007F;
+    src: url("https://cdn.jsdelivr.net/npm/country-flag-emoji-polyfill@0.1/dist/TwemojiCountryFlags.woff2") format("woff2");
+    font-display: swap;
+}
+
+body,
+.flag-emoji {
+    font-family: "Twemoji Country Flags", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Color Emoji", sans-serif;
+}
+
+:root {
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+}
+
+/* Transición nativa entre páginas para navegadores modernos */
+@view-transition {
+    navigation: auto;
+}
+
+/* 1. Entrada suave del contenido principal (evita parpadeo brusco al navegar) */
+@keyframes dp-fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.container {
+    animation: dp-fade-in 200ms var(--ease-out) both;
+}
+
+/* 2. Identidad y Logo en la barra de navegación */
+.navbar-brand img {
+    transition: transform 180ms var(--ease-out), filter 180ms var(--ease-out);
+}
+
+.navbar-brand span {
+    transition: opacity 150ms ease;
+}
+
+/* 3. Botones: respuesta táctil inmediata */
+.btn {
+    transition:
+        transform 140ms var(--ease-out),
+        background-color 150ms ease,
+        border-color 150ms ease,
+        color 150ms ease,
+        box-shadow 150ms var(--ease-out);
+}
+
+.btn:active:not(:disabled) {
+    transform: scale(0.97);
+}
+
+/* 4. Inputs y selectores de formularios */
+.form-control,
+.form-select,
+.form-check-input {
+    transition:
+        border-color 160ms var(--ease-out),
+        box-shadow 160ms var(--ease-out),
+        background-color 160ms ease;
+}
+
+/* 5. Filas de tablas del catálogo y comparador */
+.table-custom tbody tr {
+    transition: background-color 140ms ease;
+}
+
+.price-badge,
+.free-badge,
+.discount-badge,
+.genre-pill {
+    display: inline-block;
+    transition: transform 160ms var(--ease-out), filter 160ms ease;
+}
+
+/* 6. Tarjetas y cajas de métricas (.stat-box, .card-custom) */
+.card-custom {
+    transition: border-color 180ms ease, box-shadow 200ms var(--ease-out);
+}
+
+.stat-box {
+    transition: transform 180ms var(--ease-out), border-color 180ms ease, box-shadow 180ms var(--ease-out);
+}
+
+/* Tarjetas interactivas de selección de idiomas y etiquetas de banderas */
+.lang-option-card {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.45rem 0.65rem;
+    border-radius: 0.45rem;
+    border: 1px solid #30363d;
+    background-color: #161b22;
+    cursor: pointer;
+    user-select: none;
+    transition: transform 140ms var(--ease-out), border-color 150ms ease, background-color 150ms ease;
+}
+
+.lang-option-card:has(input:checked) {
+    background-color: rgba(35, 134, 54, 0.18);
+    border-color: #2ea043;
+}
+
+.lang-option-card:active {
+    transform: scale(0.98);
+}
+
+.lang-badge-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.7rem;
+    border-radius: 0.45rem;
+    background-color: #21262d;
+    border: 1px solid #30363d;
+    color: #e6edf3;
+    font-size: 0.85rem;
+    transition: transform 150ms var(--ease-out), border-color 150ms ease;
+}
+
+/* Filas clicables y Miniaturas estilo Búsqueda de Steam */
+.row-clickable {
+    cursor: pointer;
+}
+
+.row-clickable .game-title-link {
+    color: #ffffff;
+    text-decoration: none;
+    transition: color 140ms ease;
+}
+
+.steam-capsule-wrap {
+    width: 120px;
+    height: 56px;
+    border-radius: 6px;
+    overflow: hidden;
+    background-color: #0d1117;
+    border: 1px solid #30363d;
+    flex-shrink: 0;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.steam-capsule-thumb {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 220ms var(--ease-out);
+}
+
+/* Tarjeta Flotante de Vista Previa Estilo Steam Search (#global_hover) */
+.steam-hover-preview {
+    position: fixed;
+    z-index: 1080;
+    width: 340px;
+    background: linear-gradient(165deg, #1b2838 0%, #161b22 100%);
+    border: 1px solid rgba(88, 166, 255, 0.45);
+    border-radius: 10px;
+    box-shadow: 0 16px 38px rgba(0, 0, 0, 0.75);
+    pointer-events: none;
+    opacity: 0;
+    transform: scale(0.96) translateY(4px);
+    transition: opacity 160ms var(--ease-out), transform 160ms var(--ease-out);
+    overflow: hidden;
+    visibility: hidden;
+}
+
+.steam-hover-preview.show {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    visibility: visible;
+}
+
+.steam-hover-preview .hover-cover {
+    width: 100%;
+    aspect-ratio: 460 / 215;
+    object-fit: cover;
+    background-color: #0d1117;
+    border-bottom: 1px solid rgba(88, 166, 255, 0.25);
+}
+
+/* Hero Banner Panorámico en Vista de Detalle */
+.game-hero-banner {
+    position: relative;
+    border-radius: 0.75rem;
+    overflow: hidden;
+    background-color: #161b22;
+    border: 1px solid #30363d;
+    min-height: 290px;
+    display: flex;
+    align-items: flex-end;
+}
+
+.game-hero-bg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center top;
+    filter: brightness(0.45) saturate(1.15);
+    transition: transform 400ms var(--ease-out);
+}
+
+.game-hero-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        180deg,
+        rgba(13, 17, 23, 0.25) 0%,
+        rgba(13, 17, 23, 0.78) 55%,
+        rgba(22, 27, 34, 0.98) 100%
+    );
+}
+
+.game-hero-content {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+}
+
+.game-hero-capsule {
+    width: 260px;
+    max-width: 100%;
+    aspect-ratio: 460 / 215;
+    object-fit: cover;
+    border-radius: 0.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.65);
+    background-color: #0d1117;
+}
+
+/* Galería Interactiva de Capturas Oficiales en Detalle */
+.screenshot-main-stage {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background-color: #0d1117;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    border: 1px solid #30363d;
+    position: relative;
+    cursor: zoom-in;
+}
+
+.screenshot-main-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: opacity 180ms var(--ease-out), transform 220ms var(--ease-out);
+}
+
+.screenshot-strip {
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding-bottom: 0.35rem;
+    scrollbar-width: thin;
+}
+
+.screenshot-thumb-btn {
+    border: 2px solid transparent;
+    border-radius: 0.4rem;
+    padding: 0;
+    background: #0d1117;
+    overflow: hidden;
+    flex: 0 0 118px;
+    aspect-ratio: 16 / 9;
+    cursor: pointer;
+    opacity: 0.62;
+    transition: opacity 150ms ease, transform 150ms var(--ease-out), border-color 150ms ease;
+}
+
+.screenshot-thumb-btn.active,
+.screenshot-thumb-btn:hover {
+    opacity: 1;
+    border-color: #00e5ff;
+    transform: translateY(-1px);
+}
+
+.screenshot-thumb-btn img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* 7. Alertas Flash */
+@keyframes dp-alert-in {
+    from {
+        opacity: 0;
+        transform: translateY(-6px) scale(0.99);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.alert {
+    animation: dp-alert-in 180ms var(--ease-out) both;
+}
+
+/* 8. Efectos exclusivos para dispositivos con puntero (mouse) */
+@media (hover: hover) and (pointer: fine) {
+    .navbar-brand:hover img {
+        transform: scale(1.08);
+        filter: drop-shadow(0 0 8px rgba(0, 229, 255, 0.45));
+    }
+
+    .btn:hover:not(:disabled):not(:active) {
+        transform: translateY(-1px);
+    }
+
+    .table-custom tbody tr:hover .price-badge,
+    .table-custom tbody tr:hover .free-badge {
+        transform: scale(1.04);
+    }
+
+    .row-clickable:hover .game-title-link {
+        color: #00e5ff;
+    }
+
+    .row-clickable:hover .steam-capsule-thumb {
+        transform: scale(1.06);
+    }
+
+    .row-clickable:hover .steam-capsule-wrap {
+        border-color: rgba(0, 229, 255, 0.55);
+    }
+
+    .stat-box:hover {
+        transform: translateY(-2px);
+        border-color: rgba(88, 166, 255, 0.5);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    }
+}
+
+/* 9. Accesibilidad: respeto estricto a usuarios con reducción de movimiento */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+
+    .container,
+    .alert {
+        animation: none !important;
+        transform: none !important;
+    }
+}

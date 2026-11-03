@@ -8,6 +8,7 @@
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/favicon.png') }}">
     <!-- Bootstrap 5 CDN -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/transitions.css') }}">
     <style>
         body { background-color: #0d1117; color: #c9d1d9; }
         .navbar-devprice { background-color: #161b22; border-bottom: 2px solid #238636; }
@@ -141,21 +142,48 @@
                 <tbody>
                     {% for juego in juegos %}
                     {% set id_juego = juego['ID_Juego'] if 'ID_Juego' in juego.keys() else juego['id'] %}
+                    {% set nombre_juego = juego[col_name] if col_name and juego[col_name] else ('Juego #' ~ id_juego) %}
                     {% set raw_price = juego[col_price] if col_price and juego[col_price] is not none else 0 %}
                     {% set usd_price = juego['precio_usd'] if 'precio_usd' in juego.keys() and juego['precio_usd'] is not none else (raw_price|float / 100.0) %}
-                    <tr>
+                    <tr
+                        class="row-clickable"
+                        data-href="/juego/{{ id_juego }}"
+                        data-appid="{{ id_juego }}"
+                        data-title="{{ nombre_juego }}"
+                        data-dev="{{ juego['Desarrollador'] if juego['Desarrollador'] else 'Independiente' }}"
+                        data-release="{{ juego['Release_Date'] if juego['Release_Date'] else 'Disponible' }}"
+                        data-pos="{{ juego['Positiva']|int if juego['Positiva'] else 0 }}"
+                        data-neg="{{ juego['Negativa']|int if juego['Negativa'] else 0 }}"
+                        data-owners="{{ juego['Propietarios'] if juego['Propietarios'] else 'N/D' }}"
+                        data-genres="{{ juego['Generos'] if juego['Generos'] else '' }}"
+                        data-desc="{{ (juego['Short_Description'] if juego['Short_Description'] else 'Explorá la ficha completa para conocer todos los detalles técnicos y estadísticas de este título.') | truncate(175) }}"
+                    >
                         <td class="text-muted fw-bold">#{{ id_juego }}</td>
                         <td>
-                            <div class="fw-bold text-white">
-                                {{ juego[col_name] if col_name and juego[col_name] else id_juego }}
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="steam-capsule-wrap">
+                                    <img
+                                        src="https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/{{ id_juego }}/capsule_sm_120.jpg"
+                                        alt="{{ nombre_juego }}"
+                                        class="steam-capsule-thumb"
+                                        loading="lazy"
+                                        onerror="this.onerror=function(){this.style.display='none';this.nextElementSibling.classList.remove('d-none');};this.src='https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/{{ id_juego }}/header.jpg';"
+                                    >
+                                    <span class="d-none text-secondary fs-5">🎮</span>
+                                </div>
+                                <div>
+                                    <a href="/juego/{{ id_juego }}" class="fw-bold game-title-link d-inline-block">
+                                        {{ nombre_juego }}
+                                    </a>
+                                    {% if juego['Generos'] %}
+                                    <div class="d-flex flex-wrap gap-1 mt-1">
+                                        {% for g in juego['Generos'].split(',')[:3] %}
+                                            <span class="badge genre-pill">{{ g.strip() }}</span>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
                             </div>
-                            {% if juego['Generos'] %}
-                            <div class="d-flex flex-wrap gap-1 mt-1">
-                                {% for g in juego['Generos'].split(',')[:3] %}
-                                    <span class="badge genre-pill">{{ g.strip() }}</span>
-                                {% endfor %}
-                            </div>
-                            {% endif %}
                         </td>
                         <td class="small text-secondary">
                             {{ juego['Propietarios'] if juego['Propietarios'] else 'N/D' }}
@@ -213,7 +241,164 @@
         {% endif %}
     </div>
 
+    <!-- Tarjeta Flotante de Vista Previa Estilo Steam Search -->
+    <aside id="steam-hover-preview" class="steam-hover-preview" aria-hidden="true">
+        <img id="hp-img" src="" alt="" class="hover-cover">
+        <div class="p-3">
+            <h6 id="hp-title" class="fw-bold text-white mb-1"></h6>
+            <div class="d-flex justify-content-between align-items-center small text-secondary mb-2">
+                <span id="hp-dev" class="text-info text-truncate" style="max-width: 185px;"></span>
+                <span id="hp-release"></span>
+            </div>
+            <div class="stat-box p-2 mb-2 d-flex justify-content-between align-items-center small">
+                <span class="text-secondary">Recepción:</span>
+                <strong id="hp-rating" class="text-success"></strong>
+            </div>
+            <div id="hp-genres" class="d-flex flex-wrap gap-1 mb-2"></div>
+            <p id="hp-desc" class="small text-secondary mb-0" style="font-size: 0.78rem; line-height: 1.35;"></p>
+        </div>
+    </aside>
+
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        (function () {
+            const preview = document.getElementById('steam-hover-preview');
+            const hpImg = document.getElementById('hp-img');
+            const hpTitle = document.getElementById('hp-title');
+            const hpDev = document.getElementById('hp-dev');
+            const hpRelease = document.getElementById('hp-release');
+            const hpRating = document.getElementById('hp-rating');
+            const hpGenres = document.getElementById('hp-genres');
+            const hpDesc = document.getElementById('hp-desc');
+
+            let hoverTimer = null;
+            let slideTimer = null;
+            let lastX = 0;
+            let lastY = 0;
+            const capturasMem = {};
+
+            function posicionarPreview(clientX, clientY) {
+                const cardW = 340;
+                const cardH = preview.offsetHeight || 330;
+                const margin = 16;
+                const offsetCursor = 22;
+
+                // Por defecto a la derecha del cursor; si no entra en pantalla, se invierte a la izquierda
+                let left = clientX + offsetCursor;
+                if (left + cardW > window.innerWidth - margin) {
+                    left = clientX - cardW - offsetCursor;
+                }
+                if (left < margin) left = margin;
+
+                let top = clientY - (cardH / 2);
+                if (top < margin) top = margin;
+                if (top + cardH > window.innerHeight - margin) {
+                    top = window.innerHeight - cardH - margin;
+                }
+
+                preview.style.left = `${left}px`;
+                preview.style.top = `${top}px`;
+            }
+
+            function iniciarCarruselCapturas(appId) {
+                clearInterval(slideTimer);
+                const iniciar = (lista) => {
+                    if (!lista || !lista.length) return;
+                    let idx = 0;
+                    slideTimer = setInterval(() => {
+                        hpImg.src = lista[idx % lista.length].thumb;
+                        idx++;
+                    }, 1150);
+                };
+
+                if (capturasMem[appId]) {
+                    iniciar(capturasMem[appId]);
+                    return;
+                }
+
+                fetch(`/api/juego/${appId}/capturas`)
+                    .then((r) => r.json())
+                    .then((data) => {
+                        capturasMem[appId] = (data && data.ok) ? data.capturas : [];
+                        if (preview.classList.contains('show') && preview.dataset.activeId === String(appId)) {
+                            iniciar(capturasMem[appId]);
+                        }
+                    })
+                    .catch(() => {});
+            }
+
+            document.querySelectorAll('.row-clickable').forEach((row) => {
+                // 1. Clic en cualquier lugar de la barra lleva al detalle (salvo botones/links de acción)
+                row.addEventListener('click', (e) => {
+                    if (e.target.closest('a, button, form, input')) return;
+                    const destino = row.dataset.href;
+                    if (destino) window.location.href = destino;
+                });
+
+                // 2. Vista previa estilo búsqueda de Steam siguiendo la posición del cursor
+                row.addEventListener('mouseenter', (e) => {
+                    if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+                    lastX = e.clientX;
+                    lastY = e.clientY;
+                    clearTimeout(hoverTimer);
+                    hoverTimer = setTimeout(() => {
+                        const appId = row.dataset.appid;
+                        preview.dataset.activeId = appId;
+                        hpImg.style.display = 'block';
+                        hpImg.onerror = function () { this.style.display = 'none'; };
+                        hpImg.src = `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/header.jpg`;
+
+                        hpTitle.textContent = row.dataset.title || '';
+                        hpDev.textContent = row.dataset.dev || '';
+                        hpRelease.textContent = row.dataset.release || '';
+
+                        const pos = parseInt(row.dataset.pos || '0', 10);
+                        const neg = parseInt(row.dataset.neg || '0', 10);
+                        const total = pos + neg;
+                        const pct = total > 0 ? Math.round((pos / total) * 100) : 0;
+                        hpRating.textContent = total > 0 ? `👍 ${pct}% Positivas (${pos.toLocaleString()})` : 'Sin reseñas registradas';
+                        hpRating.className = pct >= 70 ? 'text-success' : (pct >= 40 ? 'text-warning' : 'text-secondary');
+
+                        hpGenres.innerHTML = '';
+                        (row.dataset.genres || '').split(',').slice(0, 4).forEach((g) => {
+                            const limpio = g.trim();
+                            if (limpio) {
+                                const span = document.createElement('span');
+                                span.className = 'badge genre-pill';
+                                span.textContent = limpio;
+                                hpGenres.appendChild(span);
+                            }
+                        });
+
+                        hpDesc.textContent = row.dataset.desc || '';
+                        posicionarPreview(lastX, lastY);
+                        preview.classList.add('show');
+                        iniciarCarruselCapturas(appId);
+                    }, 160);
+                });
+
+                row.addEventListener('mousemove', (e) => {
+                    lastX = e.clientX;
+                    lastY = e.clientY;
+                    if (preview.classList.contains('show')) {
+                        posicionarPreview(lastX, lastY);
+                    }
+                });
+
+                row.addEventListener('mouseleave', () => {
+                    clearTimeout(hoverTimer);
+                    clearInterval(slideTimer);
+                    preview.classList.remove('show');
+                });
+            });
+
+            window.addEventListener('scroll', () => {
+                clearTimeout(hoverTimer);
+                clearInterval(slideTimer);
+                preview.classList.remove('show');
+            }, { passive: true });
+        })();
+    </script>
 </body>
 </html>

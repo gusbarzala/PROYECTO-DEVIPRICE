@@ -8,6 +8,7 @@
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/favicon.png') }}">
     <!-- Bootstrap 5 CDN -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/transitions.css') }}">
     <style>
         body { background-color: #0d1117; color: #c9d1d9; }
         .navbar-devprice { background-color: #161b22; border-bottom: 2px solid #238636; }
@@ -267,16 +268,51 @@
                     </div>
 
                     <!-- Idiomas -->
-                    {% set col_idiomas = juego['Idiomas '] if juego and 'Idiomas ' in juego.keys() else (juego['Idiomas'] if juego and 'Idiomas' in juego.keys() else 'Español, Inglés') %}
+                    {% set col_idiomas = juego['Idiomas '] if juego and 'Idiomas ' in juego.keys() else (juego['Idiomas'] if juego and 'Idiomas' in juego.keys() else 'Español (Latinoamérica), Español (España), Inglés') %}
+                    {% set nombres_idiomas_actuales = (col_idiomas | idiomas_con_bandera) | map(attribute='nombre') | list %}
                     <div class="col-12">
-                        <label for="idiomas" class="form-label text-light fw-bold mb-1">Idiomas Soportados</label>
-                        <input
-                            type="text"
-                            class="form-control bg-dark text-light border-secondary"
-                            id="idiomas"
-                            name="idiomas"
-                            value="{{ col_idiomas if col_idiomas else 'Español, Inglés' }}"
-                        >
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-1">
+                            <label class="form-label text-light fw-bold mb-0">
+                                🌍 Idiomas Soportados
+                                <span id="contador-idiomas" class="badge bg-info text-dark ms-1">{{ nombres_idiomas_actuales | length }}</span>
+                            </label>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-outline-info btn-sm py-0 px-2 small" onclick="seleccionarPrincipales()">
+                                    🇦🇷 🇪🇸 🇺🇸 🇧🇷 Principales
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 small" onclick="limpiarIdiomas()">
+                                    Limpiar
+                                </button>
+                            </div>
+                        </div>
+                        <span class="hint-text mb-2">Hacé clic en las tarjetas con bandera para activar o quitar cada idioma del juego.</span>
+
+                        <!-- Vista previa interactiva de los idiomas seleccionados -->
+                        <div id="preview-idiomas" class="stat-box p-3 mb-2 d-flex flex-wrap gap-2 align-items-center" style="min-height: 54px;">
+                        </div>
+
+                        <!-- Selector visual con banderas -->
+                        <div class="stat-box p-3" style="max-height: 280px; overflow-y: auto;">
+                            <div class="row g-2">
+                                {% for item in idiomas_lista %}
+                                <div class="col-6 col-md-4 col-lg-3">
+                                    <label class="lang-option-card w-100" for="lang_{{ loop.index }}">
+                                        <input
+                                            class="form-check-input m-0 lang-checkbox"
+                                            type="checkbox"
+                                            name="idiomas"
+                                            id="lang_{{ loop.index }}"
+                                            value="{{ item.nombre }}"
+                                            data-bandera="{{ item.bandera }}"
+                                            {% if item.nombre in nombres_idiomas_actuales %}checked{% endif %}
+                                        >
+                                        <span class="flag-emoji fs-5 lh-1">{{ item.bandera }}</span>
+                                        <span class="small text-light text-truncate">{{ item.nombre }}</span>
+                                    </label>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Botones de Acción -->
@@ -294,5 +330,50 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function actualizarPreviewIdiomas() {
+            const checkboxes = document.querySelectorAll('.lang-checkbox');
+            const preview = document.getElementById('preview-idiomas');
+            const contador = document.getElementById('contador-idiomas');
+            preview.innerHTML = '';
+            let seleccionados = 0;
+
+            checkboxes.forEach((cb) => {
+                if (cb.checked) {
+                    seleccionados++;
+                    const pill = document.createElement('span');
+                    pill.className = 'lang-badge-pill border-success border-opacity-50';
+                    pill.innerHTML = `<span class="flag-emoji fs-6">${cb.dataset.bandera}</span><span>${cb.value}</span>`;
+                    preview.appendChild(pill);
+                }
+            });
+
+            contador.textContent = seleccionados;
+            if (seleccionados === 0) {
+                preview.innerHTML = '<span class="text-secondary small">Ningún idioma seleccionado (se asignará Español e Inglés por defecto).</span>';
+            }
+        }
+
+        function seleccionarPrincipales() {
+            const básicos = ['Español (Latinoamérica)', 'Español (España)', 'Inglés', 'Portugués (Brasil)'];
+            document.querySelectorAll('.lang-checkbox').forEach((cb) => {
+                cb.checked = básicos.includes(cb.value);
+            });
+            actualizarPreviewIdiomas();
+        }
+
+        function limpiarIdiomas() {
+            document.querySelectorAll('.lang-checkbox').forEach((cb) => {
+                cb.checked = false;
+            });
+            actualizarPreviewIdiomas();
+        }
+
+        document.querySelectorAll('.lang-checkbox').forEach((cb) => {
+            cb.addEventListener('change', actualizarPreviewIdiomas);
+        });
+
+        actualizarPreviewIdiomas();
+    </script>
 </body>
 </html>

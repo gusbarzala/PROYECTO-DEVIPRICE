@@ -1,6 +1,9 @@
+import json
+import re
 import sqlite3
+import urllib.request
 from functools import wraps
-from flask import Flask, render_template, request, redirect, url_for, session, flash, g
+from flask import Flask, render_template, request, redirect, url_for, session, flash, g, jsonify
 from werkzeug.security import check_password_hash
 
 app = Flask(__name__)
@@ -39,6 +42,186 @@ CATEGORIAS_PRINCIPALES = [
     "Steam Trading Cards",
     "Family Sharing",
 ]
+
+# Catálogo de idiomas con su bandera emoji para selección en ABM y visualización en Detalle
+IDIOMAS_CATALOGO = [
+    {"nombre": "Español (Latinoamérica)", "bandera": "🇦🇷"},
+    {"nombre": "Español (España)", "bandera": "🇪🇸"},
+    {"nombre": "Inglés", "bandera": "🇺🇸"},
+    {"nombre": "Portugués (Brasil)", "bandera": "🇧🇷"},
+    {"nombre": "Portugués (Portugal)", "bandera": "🇵🇹"},
+    {"nombre": "Francés", "bandera": "🇫🇷"},
+    {"nombre": "Alemán", "bandera": "🇩🇪"},
+    {"nombre": "Italiano", "bandera": "🇮🇹"},
+    {"nombre": "Japonés", "bandera": "🇯🇵"},
+    {"nombre": "Coreano", "bandera": "🇰🇷"},
+    {"nombre": "Chino Simplificado", "bandera": "🇨🇳"},
+    {"nombre": "Chino Tradicional", "bandera": "🇹🇼"},
+    {"nombre": "Ruso", "bandera": "🇷🇺"},
+    {"nombre": "Polaco", "bandera": "🇵🇱"},
+    {"nombre": "Turco", "bandera": "🇹🇷"},
+    {"nombre": "Árabe", "bandera": "🇸🇦"},
+    {"nombre": "Neerlandés", "bandera": "🇳🇱"},
+    {"nombre": "Sueco", "bandera": "🇸🇪"},
+    {"nombre": "Noruego", "bandera": "🇳🇴"},
+    {"nombre": "Danés", "bandera": "🇩🇰"},
+    {"nombre": "Finlandés", "bandera": "🇫🇮"},
+    {"nombre": "Checo", "bandera": "🇨🇿"},
+    {"nombre": "Húngaro", "bandera": "🇭🇺"},
+    {"nombre": "Ucraniano", "bandera": "🇺🇦"},
+    {"nombre": "Griego", "bandera": "🇬🇷"},
+    {"nombre": "Tailandés", "bandera": "🇹🇭"},
+    {"nombre": "Vietnamita", "bandera": "🇻🇳"},
+    {"nombre": "Indonesio", "bandera": "🇮🇩"},
+    {"nombre": "Rumano", "bandera": "🇷🇴"},
+    {"nombre": "Búlgaro", "bandera": "🇧🇬"},
+]
+
+SINONIMOS_IDIOMAS = {
+    "español (latinoamérica)": ("Español (Latinoamérica)", "🇦🇷"),
+    "español de américa latina": ("Español (Latinoamérica)", "🇦🇷"),
+    "spanish - latin america": ("Español (Latinoamérica)", "🇦🇷"),
+    "español latino": ("Español (Latinoamérica)", "🇦🇷"),
+    "español (españa)": ("Español (España)", "🇪🇸"),
+    "español de españa": ("Español (España)", "🇪🇸"),
+    "spanish - spain": ("Español (España)", "🇪🇸"),
+    "español": ("Español (España)", "🇪🇸"),
+    "spanish": ("Español (España)", "🇪🇸"),
+    "inglés": ("Inglés", "🇺🇸"),
+    "ingles": ("Inglés", "🇺🇸"),
+    "english": ("Inglés", "🇺🇸"),
+    "portugués (brasil)": ("Portugués (Brasil)", "🇧🇷"),
+    "portugués de brasil": ("Portugués (Brasil)", "🇧🇷"),
+    "portugues de brasil": ("Portugués (Brasil)", "🇧🇷"),
+    "portuguese - brazil": ("Portugués (Brasil)", "🇧🇷"),
+    "portugués": ("Portugués (Brasil)", "🇧🇷"),
+    "portuguese": ("Portugués (Brasil)", "🇧🇷"),
+    "portugués (portugal)": ("Portugués (Portugal)", "🇵🇹"),
+    "portugués de portugal": ("Portugués (Portugal)", "🇵🇹"),
+    "portugues de portugal": ("Portugués (Portugal)", "🇵🇹"),
+    "portuguese - portugal": ("Portugués (Portugal)", "🇵🇹"),
+    "francés": ("Francés", "🇫🇷"),
+    "frances": ("Francés", "🇫🇷"),
+    "french": ("Francés", "🇫🇷"),
+    "alemán": ("Alemán", "🇩🇪"),
+    "aleman": ("Alemán", "🇩🇪"),
+    "german": ("Alemán", "🇩🇪"),
+    "italiano": ("Italiano", "🇮🇹"),
+    "italian": ("Italiano", "🇮🇹"),
+    "japonés": ("Japonés", "🇯🇵"),
+    "japones": ("Japonés", "🇯🇵"),
+    "japanese": ("Japonés", "🇯🇵"),
+    "coreano": ("Coreano", "🇰🇷"),
+    "corenao": ("Coreano", "🇰🇷"),
+    "korean": ("Coreano", "🇰🇷"),
+    "chino simplificado": ("Chino Simplificado", "🇨🇳"),
+    "simplified chinese": ("Chino Simplificado", "🇨🇳"),
+    "chino mandarín": ("Chino Simplificado", "🇨🇳"),
+    "chino mandarin": ("Chino Simplificado", "🇨🇳"),
+    "chinese": ("Chino Simplificado", "🇨🇳"),
+    "chino tradicional": ("Chino Tradicional", "🇹🇼"),
+    "traditional chinese": ("Chino Tradicional", "🇹🇼"),
+    "ruso": ("Ruso", "🇷🇺"),
+    "russian": ("Ruso", "🇷🇺"),
+    "polaco": ("Polaco", "🇵🇱"),
+    "polish": ("Polaco", "🇵🇱"),
+    "turco": ("Turco", "🇹🇷"),
+    "turkish": ("Turco", "🇹🇷"),
+    "árabe": ("Árabe", "🇸🇦"),
+    "arabe": ("Árabe", "🇸🇦"),
+    "arabic": ("Árabe", "🇸🇦"),
+    "neerlandés": ("Neerlandés", "🇳🇱"),
+    "neerlandes": ("Neerlandés", "🇳🇱"),
+    "dutch": ("Neerlandés", "🇳🇱"),
+    "sueco": ("Sueco", "🇸🇪"),
+    "swedish": ("Sueco", "🇸🇪"),
+    "noruego": ("Noruego", "🇳🇴"),
+    "norwegian": ("Noruego", "🇳🇴"),
+    "danés": ("Danés", "🇩🇰"),
+    "danes": ("Danés", "🇩🇰"),
+    "danish": ("Danés", "🇩🇰"),
+    "finlandés": ("Finlandés", "🇫🇮"),
+    "finlandes": ("Finlandés", "🇫🇮"),
+    "finnish": ("Finlandés", "🇫🇮"),
+    "checo": ("Checo", "🇨🇿"),
+    "czech": ("Checo", "🇨🇿"),
+    "húngaro": ("Húngaro", "🇭🇺"),
+    "hungaro": ("Húngaro", "🇭🇺"),
+    "hungarian": ("Húngaro", "🇭🇺"),
+    "ucraniano": ("Ucraniano", "🇺🇦"),
+    "ukrainian": ("Ucraniano", "🇺🇦"),
+    "griego": ("Griego", "🇬🇷"),
+    "greek": ("Griego", "🇬🇷"),
+    "tailandés": ("Tailandés", "🇹🇭"),
+    "tailandes": ("Tailandés", "🇹🇭"),
+    "thai": ("Tailandés", "🇹🇭"),
+    "vietnamita": ("Vietnamita", "🇻🇳"),
+    "vietnamese": ("Vietnamita", "🇻🇳"),
+    "indonesio": ("Indonesio", "🇮🇩"),
+    "indonesian": ("Indonesio", "🇮🇩"),
+    "rumano": ("Rumano", "🇷🇴"),
+    "romanian": ("Rumano", "🇷🇴"),
+    "búlgaro": ("Búlgaro", "🇧🇬"),
+    "bulgaro": ("Búlgaro", "🇧🇬"),
+    "blúlgaro": ("Búlgaro", "🇧🇬"),
+    "bulgarian": ("Búlgaro", "🇧🇬"),
+    "catalan": ("Catalán", "🇪🇸"),
+    "catalán": ("Catalán", "🇪🇸"),
+    "basque": ("Euskera", "🇪🇸"),
+    "galician": ("Gallego", "🇪🇸"),
+    "slovak": ("Eslovaco", "🇸🇰"),
+    "slovenian": ("Esloveno", "🇸🇮"),
+    "croatian": ("Croata", "🇭🇷"),
+    "serbian": ("Serbio", "🇷🇸"),
+    "hindi": ("Hindi", "🇮🇳"),
+    "hebrew": ("Hebreo", "🇮🇱"),
+    "lithuanian": ("Lituano", "🇱🇹"),
+    "latvian": ("Letón", "🇱🇻"),
+    "estonian": ("Estonio", "🇪🇪"),
+    "belarusian": ("Bielorruso", "🇧🇾"),
+    "malay": ("Malayo", "🇲🇾"),
+    "filipino": ("Filipino", "🇵🇭"),
+    "persian": ("Persa", "🇮🇷"),
+    "afrikaans": ("Afrikáans", "🇿🇦"),
+    "icelandic": ("Islandés", "🇮🇸"),
+}
+
+@app.template_filter('idiomas_con_bandera')
+def parsear_idiomas_con_bandera(texto_idiomas):
+    """Convierte la cadena cruda de idiomas de Steam en una lista de dicts {'nombre', 'bandera'}."""
+    if not texto_idiomas:
+        return []
+    limpio = str(texto_idiomas)
+    limpio = re.sub(r'<br>.*$', '', limpio, flags=re.IGNORECASE)
+    limpio = re.sub(r'languages with full audio support.*$', '', limpio, flags=re.IGNORECASE)
+    limpio = re.sub(r'con soporte de audio completo.*$', '', limpio, flags=re.IGNORECASE)
+    limpio = re.sub(r'^Idiomas\s+', '', limpio, flags=re.IGNORECASE)
+    limpio = limpio.replace('<strong>*</strong>', '').replace('*', '')
+
+    partes_crudas = [p.strip() for p in limpio.split(',') if p.strip()]
+    resultado = []
+    vistos = set()
+
+    def agregar(nombre, bandera):
+        if nombre not in vistos:
+            vistos.add(nombre)
+            resultado.append({"nombre": nombre, "bandera": bandera})
+
+    for parte in partes_crudas:
+        clave = parte.lower().strip()
+        if "españa" in clave and "américa latina" in clave:
+            agregar("Español (España)", "🇪🇸")
+            agregar("Español (Latinoamérica)", "🇦🇷")
+        elif "portugal" in clave and "brasil" in clave:
+            agregar("Portugués (Portugal)", "🇵🇹")
+            agregar("Portugués (Brasil)", "🇧🇷")
+        elif clave in SINONIMOS_IDIOMAS:
+            nom, ban = SINONIMOS_IDIOMAS[clave]
+            agregar(nom, ban)
+        else:
+            agregar(parte[:1].upper() + parte[1:], "🌐")
+
+    return resultado
 
 def get_db():
     """Conexión a la base de datos SQLite."""
@@ -199,6 +382,50 @@ def detalle_juego(juego_id):
         return redirect(url_for('index'))
     return render_template('detalle.html', juego=juego, usuario=session.get('usuario'))
 
+_CAPTURAS_CACHE = {}
+
+@app.route('/api/juego/<int:juego_id>/capturas')
+def api_capturas_juego(juego_id):
+    """Consulta asíncrona de capturas oficiales desde la API pública de la tienda de Steam."""
+    if juego_id in _CAPTURAS_CACHE:
+        return jsonify(_CAPTURAS_CACHE[juego_id])
+
+    url = f"https://store.steampowered.com/api/appdetails?appids={juego_id}&l=spanish"
+    try:
+        req = urllib.request.Request(
+            url,
+            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) DevPrice/1.0'}
+        )
+        with urllib.request.urlopen(req, timeout=3.5) as resp:
+            raw = json.loads(resp.read().decode('utf-8'))
+
+        app_data = raw.get(str(juego_id), {})
+        if not app_data.get('success'):
+            res = {"ok": False, "capturas": []}
+            _CAPTURAS_CACHE[juego_id] = res
+            return jsonify(res)
+
+        data = app_data.get('data', {})
+        screenshots = data.get('screenshots', [])[:10]
+        capturas = [
+            {
+                "id": s.get("id", idx),
+                "thumb": s.get("path_thumbnail", ""),
+                "full": s.get("path_full", "")
+            }
+            for idx, s in enumerate(screenshots)
+            if s.get("path_thumbnail") and s.get("path_full")
+        ]
+        res = {
+            "ok": len(capturas) > 0,
+            "capturas": capturas,
+            "background": data.get("background_raw") or data.get("background") or ""
+        }
+        _CAPTURAS_CACHE[juego_id] = res
+        return jsonify(res)
+    except Exception:
+        return jsonify({"ok": False, "capturas": []})
+
 # ==============================================================================
 # MÓDULO ABM DE JUEGOS (Alta: Admin | Modificación: Admin y Moderador | Baja: Admin)
 # ==============================================================================
@@ -231,7 +458,8 @@ def nuevo_juego():
         required_age = request.form.get('required_age', 0.0, type=float) or 0.0
         metacritic = request.form.get('metacritic_score', type=float)
         short_desc = request.form.get('short_description', '').strip()
-        idiomas = request.form.get('idiomas', '').strip() or 'Español, Inglés'
+        idiomas_sel = [i.strip() for i in request.form.getlist('idiomas') if i.strip()]
+        idiomas = ", ".join(idiomas_sel) if idiomas_sel else 'Español (Latinoamérica), Inglés'
 
         generos_sel = request.form.getlist('generos')
         generos_str = ", ".join(generos_sel) if generos_sel else "Independiente"
@@ -273,6 +501,7 @@ def nuevo_juego():
         juego=None,
         generos_lista=GENEROS_PRINCIPALES,
         categorias_lista=CATEGORIAS_PRINCIPALES,
+        idiomas_lista=IDIOMAS_CATALOGO,
         usuario=session.get('usuario')
     )
 
@@ -316,7 +545,8 @@ def editar_juego(juego_id):
         required_age = request.form.get('required_age', 0.0, type=float) or 0.0
         metacritic = request.form.get('metacritic_score', type=float)
         short_desc = request.form.get('short_description', '').strip()
-        idiomas = request.form.get('idiomas', '').strip()
+        idiomas_sel = [i.strip() for i in request.form.getlist('idiomas') if i.strip()]
+        idiomas = ", ".join(idiomas_sel) if idiomas_sel else (juego['Idiomas '] or 'Español (Latinoamérica), Inglés')
 
         generos_sel = request.form.getlist('generos')
         generos_str = ", ".join(generos_sel) if generos_sel else (juego['Generos'] or '')
@@ -356,6 +586,7 @@ def editar_juego(juego_id):
         juego=juego,
         generos_lista=GENEROS_PRINCIPALES,
         categorias_lista=CATEGORIAS_PRINCIPALES,
+        idiomas_lista=IDIOMAS_CATALOGO,
         usuario=session.get('usuario')
     )
 
@@ -523,7 +754,7 @@ def comparador():
             # Obtener los 10 juegos referentes más populares de esa categoría para comparar mano a mano
             referentes = db.execute('''
                 SELECT ID_Juego AS id, Nombre, Desarrollador, Propietarios, Positiva, Negativa,
-                       Generos, Categorias,
+                       Generos, Categorias, Release_Date, Short_Description,
                        ROUND(CAST("Precio" AS REAL) / 100.0, 2) AS precio_usd
                 FROM juegos
                 WHERE CAST("Precio" AS REAL) > 0
