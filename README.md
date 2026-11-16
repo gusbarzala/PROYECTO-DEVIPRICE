@@ -30,4 +30,19 @@ PROYECTO_DEVPRICE/
 ├── app.py
 ├── seed.py
 ├── database.db
+├── requirements.txt
 └── steam_games.xlsx
+```
+
+---
+
+## ▶️ Instalación y Ejecución
+1. Instalar dependencias:
+   ```bash
+   pip install -r requirements.txt
+   ```
+2. Ejecutar la aplicación:
+   ```bash
+   python app.py
+   ```
+3. Abrir en el navegador `http://127.0.0.1:5000` (el dashboard BI está en `/dashboard`).

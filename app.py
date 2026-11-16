@@ -10,7 +10,8 @@ from werkzeug.security import check_password_hash
 
 app = Flask(__name__)
 app.secret_key = 'devprice_clave_secreta_fts18'
-DATABASE = 'database.db'
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATABASE = os.path.join(BASE_DIR, 'database.db')
 # Pegar aquí la URL de "Archivo -> Insertar informe -> Sitio web o portal" de Power BI Service
 # (o definir la variable de entorno POWERBI_EMBED_URL).
 POWERBI_EMBED_URL = os.environ.get('POWERBI_EMBED_URL', '').strip()
