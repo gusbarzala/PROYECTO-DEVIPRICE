@@ -24,28 +24,7 @@
 </head>
 <body>
 
-    <!-- Navegación Superior -->
-    <nav class="navbar navbar-expand-lg navbar-dark navbar-devprice mb-4 shadow">
-        <div class="container">
-            <a class="navbar-brand d-flex align-items-center gap-2 fw-bold fs-3 text-decoration-none" href="/">
-                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="DevPrice Logo" width="38" height="38" class="d-inline-block">
-                <span class="text-white">Dev<span style="color: #00e5ff;">Price</span></span>
-            </a>
-            <div class="d-flex align-items-center gap-2 flex-wrap">
-                <a href="/" class="btn btn-outline-light btn-sm">Catálogo</a>
-                <a href="/comparador" class="btn btn-outline-info btn-sm fw-bold">🧮 Simulador de Precio</a>
-                {% if usuario %}
-                    <span class="navbar-text mx-2 text-light small">
-                        <strong class="text-info">{{ usuario.email }}</strong>
-                        <span class="badge bg-secondary text-uppercase ms-1">{{ usuario.rol }}</span>
-                    </span>
-                    <a href="/logout" class="btn btn-outline-danger btn-sm fw-bold">Cerrar Sesión</a>
-                {% else %}
-                    <a href="/login" class="btn btn-success btn-sm fw-bold">Iniciar Sesión</a>
-                {% endif %}
-            </div>
-        </div>
-    </nav>
+{% include '_navbar.html' %}
 
     <main class="container pb-5">
         <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">

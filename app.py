@@ -1,7 +1,9 @@
 import json
+import os
 import re
 import sqlite3
 import urllib.request
+from collections import Counter
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, session, flash, g, jsonify
 from werkzeug.security import check_password_hash
@@ -9,6 +11,16 @@ from werkzeug.security import check_password_hash
 app = Flask(__name__)
 app.secret_key = 'devprice_clave_secreta_fts18'
 DATABASE = 'database.db'
+# Pegar aquí la URL de "Archivo -> Insertar informe -> Sitio web o portal" de Power BI Service
+# (o definir la variable de entorno POWERBI_EMBED_URL).
+POWERBI_EMBED_URL = os.environ.get('POWERBI_EMBED_URL', '').strip()
+# IDs >= CUSTOM_ID_BASE corresponden a altas propias en DevPrice (no existen en Steam)
+CUSTOM_ID_BASE = 90000000
+
+@app.context_processor
+def inject_globals():
+    """Variables globales disponibles en todas las plantillas Jinja."""
+    return {"custom_id_base": CUSTOM_ID_BASE}
 
 # Listado curado de géneros y categorías principales presentes en la base de Steam
 GENEROS_PRINCIPALES = [
@@ -387,6 +399,9 @@ _CAPTURAS_CACHE = {}
 @app.route('/api/juego/<int:juego_id>/capturas')
 def api_capturas_juego(juego_id):
     """Consulta asíncrona de capturas oficiales desde la API pública de la tienda de Steam."""
+    if juego_id >= CUSTOM_ID_BASE:
+        return jsonify({"ok": False, "capturas": []})
+
     if juego_id in _CAPTURAS_CACHE:
         return jsonify(_CAPTURAS_CACHE[juego_id])
 
@@ -471,8 +486,11 @@ def nuevo_juego():
         plat_mac = 1.0 if request.form.get('platforms_mac') else 0.0
         plat_linux = 1.0 if request.form.get('platforms_linux') else 0.0
 
-        max_row = db.execute("SELECT COALESCE(MAX(ID_Juego), 3000000) FROM juegos").fetchone()
-        nuevo_id = int(max_row[0]) + 10
+        max_custom = db.execute(
+            "SELECT MAX(ID_Juego) FROM juegos WHERE ID_Juego >= ?",
+            (CUSTOM_ID_BASE,)
+        ).fetchone()[0]
+        nuevo_id = (int(max_custom) + 1) if max_custom is not None else CUSTOM_ID_BASE
 
         db.execute('''
             INSERT INTO juegos (
@@ -772,6 +790,82 @@ def comparador():
         generos_lista=GENEROS_PRINCIPALES,
         categorias_lista=CATEGORIAS_PRINCIPALES,
         usuario=session.get('usuario')
+    )
+
+def _listar_imagenes_powerbi():
+    """Lista capturas estáticas de Power BI en static/assets_powerbi/ si existen."""
+    carpeta = os.path.join(app.root_path, 'static', 'assets_powerbi')
+    if not os.path.isdir(carpeta):
+        return []
+    extensiones = ('.png', '.jpg', '.jpeg', '.webp', '.gif')
+    return sorted(
+        nombre for nombre in os.listdir(carpeta)
+        if os.path.isfile(os.path.join(carpeta, nombre)) and nombre.lower().endswith(extensiones)
+    )
+
+def _obtener_metricas_dashboard(db):
+    """Calcula KPIs y series agregadas de la tabla juegos para el Dashboard BI."""
+    resumen = db.execute('''
+        SELECT
+            COUNT(*) AS total_juegos,
+            SUM(CASE WHEN CAST("Precio" AS REAL) = 0 THEN 1 ELSE 0 END) AS gratis,
+            SUM(CASE WHEN CAST("Precio" AS REAL) > 0 THEN 1 ELSE 0 END) AS pagos,
+            ROUND(AVG(CASE WHEN CAST("Precio" AS REAL) > 0 THEN CAST("Precio" AS REAL) / 100.0 END), 2) AS prom,
+            ROUND(MAX(CAST("Precio" AS REAL) / 100.0), 2) AS max_precio,
+            SUM(CASE WHEN CAST("Precio" AS REAL) > 0 AND CAST("Precio" AS REAL) <= 1000 THEN 1 ELSE 0 END) AS rango_1_10,
+            SUM(CASE WHEN CAST("Precio" AS REAL) > 1000 AND CAST("Precio" AS REAL) <= 3000 THEN 1 ELSE 0 END) AS rango_10_30,
+            SUM(CASE WHEN CAST("Precio" AS REAL) > 3000 THEN 1 ELSE 0 END) AS rango_mas_30
+        FROM juegos
+    ''').fetchone()
+
+    gratis = resumen['gratis'] or 0
+    pagos = resumen['pagos'] or 0
+
+    contador_generos = Counter()
+    for fila in db.execute('SELECT "Generos" FROM juegos WHERE "Generos" IS NOT NULL AND TRIM("Generos") != ""'):
+        for genero in fila['Generos'].split(','):
+            limpio = genero.strip()
+            if limpio:
+                contador_generos[limpio] += 1
+    top_generos = contador_generos.most_common(10)
+
+    top_juegos = db.execute('''
+        SELECT "Nombre", ROUND(CAST("Precio" AS REAL) / 100.0, 2) AS precio_usd
+        FROM juegos
+        WHERE CAST("Precio" AS REAL) > 0 AND "Nombre" IS NOT NULL AND TRIM("Nombre") != ""
+        ORDER BY CAST("Precio" AS REAL) DESC, CAST(Positiva AS INTEGER) DESC
+        LIMIT 10
+    ''').fetchall()
+
+    return {
+        "total_juegos": resumen['total_juegos'] or 0,
+        "gratis": gratis,
+        "pagos": pagos,
+        "prom": f"{(resumen['prom'] or 0.0):.2f}",
+        "max_precio": f"{(resumen['max_precio'] or 0.0):.2f}",
+        "rangos_valores": [
+            gratis,
+            resumen['rango_1_10'] or 0,
+            resumen['rango_10_30'] or 0,
+            resumen['rango_mas_30'] or 0,
+        ],
+        "generos_labels": [nombre for nombre, _ in top_generos],
+        "generos_valores": [cantidad for _, cantidad in top_generos],
+        "top_juegos_labels": [fila['Nombre'] for fila in top_juegos],
+        "top_juegos_valores": [fila['precio_usd'] for fila in top_juegos],
+    }
+
+@app.route('/dashboard')
+def dashboard():
+    """Panel analítico BI con métricas en vivo de SQLite e integración de Power BI."""
+    db = get_db()
+    metricas = _obtener_metricas_dashboard(db)
+    return render_template(
+        'dashboard.html',
+        imagenes_bi=_listar_imagenes_powerbi(),
+        powerbi_embed_url=POWERBI_EMBED_URL,
+        usuario=session.get('usuario'),
+        **metricas
     )
 
 @app.route('/login', methods=['GET', 'POST'])

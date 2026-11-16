@@ -1,0 +1,26 @@
+    <!-- Navegación Superior -->
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-devprice mb-4 shadow" aria-label="Principal">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center gap-2 fw-bold fs-3 text-decoration-none" href="/">
+                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="DevPrice Logo" width="38" height="38" class="d-inline-block">
+                <span class="text-white">Dev<span style="color: #00e5ff;">Price</span></span>
+            </a>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <a href="/" class="btn {{ 'btn-light text-dark fw-bold' if request.endpoint == 'index' else 'btn-outline-light' }} btn-sm"{% if request.endpoint == 'index' %} aria-current="page"{% endif %}>Catálogo Oficial</a>
+                <a href="/comparador" class="btn {{ 'btn-info text-dark fw-bold' if request.endpoint == 'comparador' else 'btn-outline-info fw-bold' }} btn-sm"{% if request.endpoint == 'comparador' %} aria-current="page"{% endif %}>🧮 Simulador de Precio</a>
+                <a href="/dashboard" class="btn {{ 'btn-info text-dark fw-bold' if request.endpoint == 'dashboard' else 'btn-outline-info fw-bold' }} btn-sm"{% if request.endpoint == 'dashboard' %} aria-current="page"{% endif %}>📊 Dashboard BI</a>
+                {% if usuario and usuario.rol == 'admin' %}
+                    <a href="/juego/nuevo" class="btn {{ 'btn-success fw-bold border border-2 border-light' if request.endpoint == 'nuevo_juego' else 'btn-success fw-bold' }} btn-sm"{% if request.endpoint == 'nuevo_juego' %} aria-current="page"{% endif %}>+ Nuevo Juego (ABM)</a>
+                {% endif %}
+                {% if usuario %}
+                    <span class="navbar-text mx-2 text-light small">
+                        <strong class="text-info">{{ usuario.email }}</strong>
+                        <span class="badge bg-secondary text-uppercase ms-1">{{ usuario.rol }}</span>
+                    </span>
+                    <a href="/logout" class="btn btn-outline-danger btn-sm fw-bold">Cerrar Sesión</a>
+                {% else %}
+                    <a href="/login" class="btn btn-success btn-sm fw-bold">Iniciar Sesión</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>

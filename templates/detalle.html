@@ -32,31 +32,7 @@
 </head>
 <body>
 
-    <!-- Navegación Superior -->
-    <nav class="navbar navbar-expand-lg navbar-dark navbar-devprice mb-4 shadow">
-        <div class="container">
-            <a class="navbar-brand d-flex align-items-center gap-2 fw-bold fs-3 text-decoration-none" href="/">
-                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="DevPrice Logo" width="38" height="38" class="d-inline-block">
-                <span class="text-white">Dev<span style="color: #00e5ff;">Price</span></span>
-            </a>
-            <div class="d-flex align-items-center gap-2 flex-wrap">
-                <a href="/" class="btn btn-outline-light btn-sm">Catálogo Oficial</a>
-                <a href="/comparador" class="btn btn-outline-info btn-sm fw-bold">🧮 Simulador de Precio</a>
-                {% if usuario and usuario.rol == 'admin' %}
-                    <a href="/juego/nuevo" class="btn btn-success btn-sm fw-bold">+ Nuevo Juego (ABM)</a>
-                {% endif %}
-                {% if usuario %}
-                    <span class="navbar-text mx-2 text-light small">
-                        <strong class="text-info">{{ usuario.email }}</strong>
-                        <span class="badge bg-secondary text-uppercase ms-1">{{ usuario.rol }}</span>
-                    </span>
-                    <a href="/logout" class="btn btn-outline-danger btn-sm fw-bold">Cerrar Sesión</a>
-                {% else %}
-                    <a href="/login" class="btn btn-success btn-sm fw-bold">Iniciar Sesión</a>
-                {% endif %}
-            </div>
-        </div>
-    </nav>
+{% include '_navbar.html' %}
 
     <main class="container pb-5">
         <!-- Mensajes Flash de alerta -->
@@ -71,6 +47,7 @@
             {% endif %}
         {% endwith %}
 
+        {% set es_custom = (id_juego|int) >= custom_id_base %}
         <!-- Botón de regreso, acciones ABM por rol y ruta de navegación -->
         <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
             <a href="/" class="btn btn-outline-secondary btn-sm fw-bold">
@@ -78,7 +55,11 @@
             </a>
             <div class="d-flex align-items-center gap-2 flex-wrap">
                 <span class="text-secondary small me-2">
-                    Steam App ID: <strong class="text-light">#{{ id_juego }}</strong>
+                    {% if es_custom %}
+                        ID Catálogo DevPrice: <strong class="text-light">#{{ id_juego }}</strong>
+                    {% else %}
+                        Steam App ID: <strong class="text-light">#{{ id_juego }}</strong>
+                    {% endif %}
                 </span>
                 {% if usuario and usuario.rol in ['admin', 'moderador'] %}
                     <a href="/juego/{{ id_juego }}/editar" class="btn btn-warning btn-sm fw-bold text-dark">
@@ -97,6 +78,7 @@
 
         <!-- Hero Banner Panorámico Estilo Tienda Steam -->
         <section class="game-hero-banner shadow mb-4 p-4">
+            {% if not es_custom %}
             <img
                 id="hero-bg-img"
                 src="https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/{{ id_juego }}/library_hero.jpg"
@@ -104,16 +86,19 @@
                 class="game-hero-bg"
                 onerror="this.onerror=function(){this.style.display='none';};this.src='https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/{{ id_juego }}/header.jpg';"
             >
+            {% endif %}
             <div class="game-hero-overlay"></div>
 
             <div class="game-hero-content d-flex flex-column flex-md-row align-items-md-end justify-content-between gap-4">
                 <div class="d-flex flex-column flex-sm-row align-items-sm-end gap-3">
+                    {% if not es_custom %}
                     <img
                         src="https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/{{ id_juego }}/header.jpg"
                         alt="Portada de {{ nombre }}"
                         class="game-hero-capsule"
                         onerror="this.style.display='none'"
                     >
+                    {% endif %}
                     <div>
                         <h1 class="h2 fw-bold text-white mb-2">{{ nombre }}</h1>
                         <p class="text-light text-opacity-75 mb-2 small">
@@ -227,12 +212,14 @@
             <!-- Columna Derecha: Portada, Precio, Plataformas y Métricas -->
             <div class="col-lg-4">
                 <article class="card card-custom shadow-sm overflow-hidden mb-4">
+                    {% if not es_custom %}
                     <img
                         src="https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/{{ id_juego }}/header.jpg"
                         alt="Portada de {{ nombre }}"
                         class="game-banner"
                         onerror="this.style.display='none'"
                     >
+                    {% endif %}
                     <div class="card-body p-4">
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <span class="text-secondary fw-bold">Precio en Catálogo</span>
@@ -272,9 +259,15 @@
                             </div>
                         </div>
 
+                        {% if es_custom %}
+                        <div class="alert alert-info bg-opacity-10 border-info border-opacity-25 text-info text-center small mb-0 py-2">
+                            🎮 Lanzamiento propio registrado en DevPrice
+                        </div>
+                        {% else %}
                         <a href="https://store.steampowered.com/app/{{ id_juego }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-info w-100 fw-bold">
                             Ver en Tienda de Steam &nearr;
                         </a>
+                        {% endif %}
                     </div>
                 </article>
 
@@ -397,6 +390,7 @@
             modal.show();
         }
 
+        {% if not es_custom %}
         // Carga asíncrona de capturas oficiales de Steam
         fetch('/api/juego/{{ id_juego }}/capturas')
             .then((r) => r.json())
@@ -419,6 +413,7 @@
                 seleccionarCaptura(0);
             })
             .catch(() => {});
+        {% endif %}
     </script>
 </body>
 </html>

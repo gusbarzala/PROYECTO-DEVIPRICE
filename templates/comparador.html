@@ -26,31 +26,7 @@
 </head>
 <body>
 
-    <!-- Navegación Superior -->
-    <nav class="navbar navbar-expand-lg navbar-dark navbar-devprice mb-4 shadow">
-        <div class="container">
-            <a class="navbar-brand d-flex align-items-center gap-2 fw-bold fs-3 text-decoration-none" href="/">
-                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="DevPrice Logo" width="38" height="38" class="d-inline-block">
-                <span class="text-white">Dev<span style="color: #00e5ff;">Price</span></span>
-            </a>
-            <div class="d-flex align-items-center gap-2 flex-wrap">
-                <a href="/" class="btn btn-outline-light btn-sm">Catálogo Oficial</a>
-                <a href="/comparador" class="btn btn-info btn-sm fw-bold text-dark">🧮 Simulador de Precio</a>
-                {% if usuario and usuario.rol == 'admin' %}
-                    <a href="/juego/nuevo" class="btn btn-success btn-sm fw-bold">+ Nuevo Juego (ABM)</a>
-                {% endif %}
-                {% if usuario %}
-                    <span class="navbar-text mx-2 text-light small">
-                        <strong class="text-info">{{ usuario.email }}</strong>
-                        <span class="badge bg-secondary text-uppercase ms-1">{{ usuario.rol }}</span>
-                    </span>
-                    <a href="/logout" class="btn btn-outline-danger btn-sm fw-bold">Cerrar Sesión</a>
-                {% else %}
-                    <a href="/login" class="btn btn-success btn-sm fw-bold">Iniciar Sesión</a>
-                {% endif %}
-            </div>
-        </div>
-    </nav>
+{% include '_navbar.html' %}
 
     <main class="container pb-5">
         <!-- Mensajes Flash -->
@@ -332,14 +308,18 @@
                                         <td>
                                             <div class="d-flex align-items-center gap-3">
                                                 <div class="steam-capsule-wrap">
-                                                    <img
-                                                        src="https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/{{ ref['id'] }}/capsule_sm_120.jpg"
-                                                        alt="{{ ref['Nombre'] }}"
-                                                        class="steam-capsule-thumb"
-                                                        loading="lazy"
-                                                        onerror="this.onerror=function(){this.style.display='none';this.nextElementSibling.classList.remove('d-none');};this.src='https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/{{ ref['id'] }}/header.jpg';"
-                                                    >
-                                                    <span class="d-none text-secondary fs-5">🎮</span>
+                                                    {% if (ref['id']|int) >= custom_id_base %}
+                                                        <span class="text-secondary fs-5" aria-hidden="true">🎮</span>
+                                                    {% else %}
+                                                        <img
+                                                            src="https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/{{ ref['id'] }}/capsule_sm_120.jpg"
+                                                            alt="{{ ref['Nombre'] }}"
+                                                            class="steam-capsule-thumb"
+                                                            loading="lazy"
+                                                            onerror="this.onerror=function(){this.style.display='none';this.nextElementSibling.classList.remove('d-none');};this.src='https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/{{ ref['id'] }}/header.jpg';"
+                                                        >
+                                                        <span class="d-none text-secondary fs-5">🎮</span>
+                                                    {% endif %}
                                                 </div>
                                                 <div>
                                                     <a href="/juego/{{ ref['id'] }}" class="fw-bold game-title-link d-block">{{ ref['Nombre'] }}</a>
