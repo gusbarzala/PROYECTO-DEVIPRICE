@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Analítico BI | DevPrice</title>
+    <title>Dashboard Analítico BI (TP2) | DevPrice</title>
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/favicon.png') }}">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/transitions.css') }}">
@@ -12,7 +12,50 @@
         body { background-color: #0d1117; color: #c9d1d9; }
         .navbar-devprice { background-color: #161b22; border-bottom: 2px solid #238636; }
         .card-bi { background-color: #161b22; border: 1px solid #30363d; border-radius: 10px; }
-        .kpi-num { font-size: 1.9rem; font-weight: 800; }
+        .slicer-bar {
+            background: linear-gradient(180deg, #161b22 0%, #11161d 100%);
+            border: 1px solid #30363d;
+            border-left: 4px solid #2f81f7;
+            border-radius: 10px;
+        }
+        .kpi-card {
+            background-color: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 10px;
+            transition: transform 0.15s ease, border-color 0.15s ease;
+        }
+        .kpi-card:hover {
+            transform: translateY(-2px);
+            border-color: #58a6ff;
+        }
+        .kpi-num { font-size: 1.65rem; font-weight: 800; line-height: 1.15; }
+        .kpi-sub { font-size: 0.76rem; color: #8b949e; }
+        .nav-tabs-bi {
+            border-bottom: 1px solid #30363d;
+            gap: 0.35rem;
+        }
+        .nav-tabs-bi .nav-link {
+            color: #8b949e;
+            background-color: #161b22;
+            border: 1px solid #30363d;
+            border-bottom: none;
+            border-radius: 8px 8px 0 0;
+            font-weight: 600;
+            padding: 0.65rem 1.1rem;
+        }
+        .nav-tabs-bi .nav-link:hover {
+            color: #f0f6fc;
+            border-color: #58a6ff;
+        }
+        .nav-tabs-bi .nav-link.active {
+            color: #ffffff;
+            background-color: #1f6feb;
+            border-color: #1f6feb;
+        }
+        .chart-box {
+            position: relative;
+            width: 100%;
+        }
         .bi-zoom-btn { cursor: zoom-in; display: block; width: 100%; padding: 0; border: 0; background: transparent; text-align: left; }
         .bi-thumb-img { width: 100%; aspect-ratio: 4510 / 2585; object-fit: contain; background: #0d1117; }
         dialog.bi-dialog {
@@ -26,6 +69,11 @@
             margin: auto;
         }
         dialog.bi-dialog::backdrop { background: rgba(1, 4, 9, 0.82); }
+        .badge-live {
+            background-color: rgba(46, 160, 67, 0.18);
+            color: #3fb950;
+            border: 1px solid rgba(63, 185, 80, 0.4);
+        }
     </style>
 </head>
 <body>
@@ -33,121 +81,422 @@
 {% include '_navbar.html' %}
 
     <main class="container pb-5">
-        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+        <!-- ENCABEZADO -->
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
             <div>
-                <h1 class="h2 text-white fw-bold mb-1">📊 Dashboard de Inteligencia de Negocios (BI)</h1>
-                <p class="text-secondary mb-0">Indicadores y tableros analíticos del dataset de videojuegos de Steam</p>
-            </div>
-            <a href="/" class="btn btn-outline-secondary">← Volver al Catálogo</a>
-        </div>
-
-        <!-- 4 TARJETAS KPI EN VIVO DESDE SQLITE -->
-        <div class="row g-3 mb-4">
-            <div class="col-sm-6 col-md-3">
-                <div class="card card-bi p-3 text-center">
-                    <span class="text-secondary small fw-bold">TOTAL VIDEOJUEGOS</span>
-                    <div class="kpi-num text-info mt-1">{{ "{:,}".format(total_juegos).replace(",", ".") }}</div>
-                    <span class="text-secondary small">Registros activos en BD</span>
+                <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+                    <h1 class="h2 text-white fw-bold mb-0">📊 Dashboard de Inteligencia de Negocios (BI)</h1>
+                    <span class="badge badge-live rounded-pill px-2 py-1">● En vivo desde SQLite</span>
                 </div>
+                <p class="text-secondary mb-0">
+                    Reconstrucción interactiva de las 3 hojas del informe Power BI (TP2) conectada en tiempo real al catálogo y ABM de DevPrice
+                </p>
             </div>
-            <div class="col-sm-6 col-md-3">
-                <div class="card card-bi p-3 text-center">
-                    <span class="text-secondary small fw-bold">PRECIO PROMEDIO (PAGOS)</span>
-                    <div class="kpi-num text-success mt-1">${{ prom }}</div>
-                    <span class="text-secondary small">USD en catálogo pago</span>
-                </div>
-            </div>
-            <div class="col-sm-6 col-md-3">
-                <div class="card card-bi p-3 text-center">
-                    <span class="text-secondary small fw-bold">JUEGOS GRATUITOS (F2P)</span>
-                    <div class="kpi-num text-warning mt-1">{{ "{:,}".format(gratis).replace(",", ".") }}</div>
-                    <span class="text-secondary small">Precio = $0.00</span>
-                </div>
-            </div>
-            <div class="col-sm-6 col-md-3">
-                <div class="card card-bi p-3 text-center">
-                    <span class="text-secondary small fw-bold">PRECIO MÁXIMO DETECTADO</span>
-                    <div class="kpi-num text-danger mt-1">${{ max_precio }}</div>
-                    <span class="text-secondary small">Tope superior del dataset</span>
-                </div>
+            <div class="d-flex gap-2">
+                <a href="/comparador" class="btn btn-outline-info btn-sm">⚖️ Ir al Simulador</a>
+                <a href="/" class="btn btn-outline-secondary btn-sm">← Volver al Catálogo</a>
             </div>
         </div>
 
-        <!-- 4 GRÁFICOS INTERACTIVOS EN VIVO -->
-        <div class="row g-4">
-            <div class="col-md-6">
-                <div class="card card-bi p-3 h-100">
-                    <h2 class="h6 text-info fw-bold mb-3">1. Distribución de Juegos por Rango de Precio (USD)</h2>
-                    <canvas id="chartRangos" height="210" role="img" aria-label="Gráfico de barras con la distribución de juegos por rango de precio en USD"></canvas>
+        <!-- BARRA SUPERIOR DE SEGMENTADORES EN VIVO (SLICERS DEL TP2) -->
+        <section class="slicer-bar p-3 mb-4 shadow-sm" aria-label="Segmentadores interactivos del Dashboard">
+            <form id="form-segmentadores" class="row g-3 align-items-end" onsubmit="return false;">
+                <div class="col-12 col-md-3">
+                    <label for="filtro-monetizacion" class="form-label small text-uppercase fw-bold text-info mb-1">
+                        💰 Tipo de Monetización
+                    </label>
+                    <select id="filtro-monetizacion" name="monetizacion" class="form-select form-select-sm bg-dark text-light border-secondary">
+                        <option value="todos" {% if filtros.monetizacion == 'todos' %}selected{% endif %}>Todos (Pagos + Gratuitos)</option>
+                        <option value="pago" {% if filtros.monetizacion == 'pago' %}selected{% endif %}>Juego Pago</option>
+                        <option value="gratis" {% if filtros.monetizacion == 'gratis' %}selected{% endif %}>Juego Gratuito (F2P)</option>
+                    </select>
                 </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card card-bi p-3 h-100">
-                    <h2 class="h6 text-info fw-bold mb-3">2. Proporción: Juegos Gratuitos vs. Pagos</h2>
-                    <canvas id="chartModelo" height="210" role="img" aria-label="Gráfico circular comparando juegos pagos y juegos gratuitos"></canvas>
+                <div class="col-12 col-md-3">
+                    <label for="filtro-plataforma" class="form-label small text-uppercase fw-bold text-info mb-1">
+                        💻 Tipo de Plataforma
+                    </label>
+                    <select id="filtro-plataforma" name="plataforma" class="form-select form-select-sm bg-dark text-light border-secondary">
+                        <option value="todas" {% if filtros.plataforma == 'todas' %}selected{% endif %}>Todas las plataformas</option>
+                        <option value="windows_only" {% if filtros.plataforma == 'windows_only' %}selected{% endif %}>Exclusivo Windows</option>
+                        <option value="multiplataforma" {% if filtros.plataforma == 'multiplataforma' %}selected{% endif %}>Multiplataforma (Mac / Linux)</option>
+                    </select>
                 </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card card-bi p-3 h-100">
-                    <h2 class="h6 text-info fw-bold mb-3">3. Top Categorías / Géneros con Mayor Oferta</h2>
-                    <canvas id="chartGeneros" height="220" role="img" aria-label="Gráfico de barras horizontales con los géneros con mayor cantidad de títulos"></canvas>
+                <div class="col-12 col-md-3">
+                    <label for="filtro-genero" class="form-label small text-uppercase fw-bold text-info mb-1">
+                        🎮 Género Principal
+                    </label>
+                    <select id="filtro-genero" name="genero" class="form-select form-select-sm bg-dark text-light border-secondary">
+                        <option value="">Todos los géneros</option>
+                        {% for g in generos_lista %}
+                        <option value="{{ g }}" {% if filtros.genero == g %}selected{% endif %}>{{ g }}</option>
+                        {% endfor %}
+                    </select>
                 </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card card-bi p-3 h-100">
-                    <h2 class="h6 text-info fw-bold mb-3">4. Títulos de Mayor Valor en el Catálogo (USD)</h2>
-                    <canvas id="chartTopPrecios" height="220" role="img" aria-label="Gráfico de barras horizontales con los títulos de mayor precio en USD"></canvas>
+                <div class="col-12 col-md-3 d-flex justify-content-between align-items-center gap-2">
+                    <button type="button" id="btn-limpiar-filtros" class="btn btn-sm btn-outline-light w-100">
+                        ↺ Limpiar filtros
+                    </button>
+                    <span id="estado-carga-bi" class="badge bg-secondary d-none">Actualizando…</span>
                 </div>
-            </div>
-        </div>
+            </form>
+        </section>
 
-        {% if powerbi_embed_url %}
-        <section class="mt-5">
-            <h2 class="h4 text-info fw-bold mb-3">📈 Tablero Interactivo Power BI</h2>
-            <div class="card card-bi p-2 shadow-sm">
-                <div class="ratio ratio-16x9">
-                    <iframe
-                        src="{{ powerbi_embed_url }}"
-                        title="Tablero interactivo de Power BI - DevPrice"
-                        class="rounded border border-secondary"
-                        allowfullscreen>
-                    </iframe>
+        <!-- 8 TARJETAS KPI EN VIVO (ALINEADAS CON EL .PBIX DEL TP2) -->
+        <section class="row g-3 mb-4" aria-label="Indicadores clave de rendimiento (KPIs)">
+            <div class="col-6 col-md-3">
+                <div class="kpi-card p-3 h-100">
+                    <span class="text-secondary small fw-bold d-block">TOTAL_JUEGOS</span>
+                    <div id="kpi-total-juegos" class="kpi-num text-info mt-1">{{ "{:,}".format(total_juegos).replace(",", ".") }}</div>
+                    <span id="kpi-total-juegos-sub" class="kpi-sub">Pagos: {{ "{:,}".format(pagos).replace(",", ".") }} · Gratis: {{ "{:,}".format(gratis).replace(",", ".") }}</span>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="kpi-card p-3 h-100">
+                    <span class="text-secondary small fw-bold d-block">PRECIO_PROMEDIO</span>
+                    <div id="kpi-precio-prom" class="kpi-num text-success mt-1">${{ prom }} <small class="fs-6 fw-normal">USD</small></div>
+                    <span id="kpi-precio-prom-sub" class="kpi-sub">General: ${{ "{:.2f}".format(precio_promedio_general_usd) }} ({{ "{:.2f}".format(precio_promedio_centavos).replace(".", ",") }} ¢ en PBI)</span>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="kpi-card p-3 h-100">
+                    <span class="text-secondary small fw-bold d-block">AVERAGE OF DESCUENTO</span>
+                    <div id="kpi-descuento-prom" class="kpi-num text-warning mt-1">{{ "{:.2f}".format(descuento_promedio_pct).replace(".", ",") }}%</div>
+                    <span id="kpi-max-precio-sub" class="kpi-sub">Tope catálogo: ${{ max_precio }} USD</span>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="kpi-card p-3 h-100">
+                    <span class="text-secondary small fw-bold d-block">RESEÑAS_POSITIVAS_PROM</span>
+                    <div id="kpi-positivas-prom" class="kpi-num text-primary mt-1">{{ "{:,.0f}".format(resenas_positivas_promedio).replace(",", ".") }}</div>
+                    <span id="kpi-positivas-prom-sub" class="kpi-sub">Equivalente PBI: {{ "{:.2f}".format(resenas_positivas_promedio / 1000.0).replace(".", ",") }}K</span>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="kpi-card p-3 h-100">
+                    <span class="text-secondary small fw-bold d-block">METASCORE_PROMEDIO</span>
+                    <div id="kpi-metascore-prom" class="kpi-num text-info mt-1">{{ "{:.2f}".format(metascore_promedio).replace(".", ",") }}</div>
+                    <span id="kpi-metascore-sub" class="kpi-sub">Sobre {{ "{:,}".format(juegos_con_metascore).replace(",", ".") }} títulos calificados (&gt; 0)</span>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="kpi-card p-3 h-100">
+                    <span class="text-secondary small fw-bold d-block">JUEGOS_WINDOWS</span>
+                    <div id="kpi-win" class="kpi-num text-light mt-1">{{ "{:,}".format(juegos_windows).replace(",", ".") }}</div>
+                    <span class="kpi-sub">Soporte Windows activo</span>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="kpi-card p-3 h-100">
+                    <span class="text-secondary small fw-bold d-block">JUEGOS_MAC</span>
+                    <div id="kpi-mac" class="kpi-num text-light mt-1">{{ "{:,}".format(juegos_mac).replace(",", ".") }}</div>
+                    <span class="kpi-sub">Soporte macOS activo</span>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="kpi-card p-3 h-100">
+                    <span class="text-secondary small fw-bold d-block">JUEGOS_LINUX</span>
+                    <div id="kpi-linux" class="kpi-num text-light mt-1">{{ "{:,}".format(juegos_linux).replace(",", ".") }}</div>
+                    <span class="kpi-sub">Soporte Linux / SteamOS</span>
                 </div>
             </div>
         </section>
-        {% endif %}
 
-        <!-- SECCIÓN AUTOMÁTICA: TABLEROS DE POWER BI DEBAJO DEL DASHBOARD EN VIVO -->
-        {% if imagenes_bi %}
-        <section class="mt-5">
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                <h2 class="h4 text-info fw-bold mb-0">📈 Tableros de Power BI (TP2)</h2>
-                <span class="small text-secondary">Hacé clic en cualquier tablero para ampliarlo</span>
-            </div>
-            <div class="row g-4">
-                {% for img in imagenes_bi %}
-                {% set img_url = url_for('static', filename='assets_powerbi/' + img) %}
-                <div class="{{ 'col-12' if (loop.first and imagenes_bi|length is odd) else 'col-md-6' }}">
-                    <div class="card card-bi p-2 shadow-sm h-100">
-                        <button
-                            type="button"
-                            class="bi-zoom-btn"
-                            data-bi-src="{{ img_url }}"
-                            data-bi-title="Tablero Power BI — Hoja {{ loop.index }}"
-                            aria-label="Ampliar Tablero Power BI Hoja {{ loop.index }}"
-                        >
-                            <img src="{{ img_url }}"
-                                 class="img-fluid rounded border border-secondary bi-thumb-img"
-                                 alt="Tablero analítico de Power BI {{ loop.index }}">
-                        </button>
+        <!-- NAVEGACIÓN DE LAS 3 HOJAS DEL INFORME POWER BI (TP2) + RESPALDO .PBIX -->
+        <ul class="nav nav-tabs nav-tabs-bi mb-4" id="dashboardTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="tab-hoja1-btn" data-bs-toggle="tab" data-bs-target="#pane-hoja1" type="button" role="tab" aria-controls="pane-hoja1" aria-selected="true">
+                    📊 Hoja 1: Mercado y Evolución
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-hoja2-btn" data-bs-toggle="tab" data-bs-target="#pane-hoja2" type="button" role="tab" aria-controls="pane-hoja2" aria-selected="false">
+                    🎯 Hoja 2: Precio vs. Metascore
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-hoja3-btn" data-bs-toggle="tab" data-bs-target="#pane-hoja3" type="button" role="tab" aria-controls="pane-hoja3" aria-selected="false">
+                    🌍 Hoja 3: Publicación e Idiomas
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-respaldo-btn" data-bs-toggle="tab" data-bs-target="#pane-respaldo" type="button" role="tab" aria-controls="pane-respaldo" aria-selected="false">
+                    🖼️ Respaldo Power BI (.pbix)
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="dashboardTabsContent">
+            <!-- ================================================================== -->
+            <!-- HOJA 1: MERCADO GENERAL Y EVOLUCIÓN (6 VISUALIZACIONES DEL TP2)    -->
+            <!-- ================================================================== -->
+            <div class="tab-pane fade show active" id="pane-hoja1" role="tabpanel" aria-labelledby="tab-hoja1-btn">
+                <div class="row g-4">
+                    <!-- 1. Precio_Promedio by Año -->
+                    <div class="col-lg-6">
+                        <div class="card card-bi p-3 h-100">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h2 class="h6 text-info fw-bold mb-0">1. Precio_Promedio por Año de Lanzamiento (USD)</h2>
+                                <span class="badge bg-dark border border-secondary text-secondary">Evolución temporal</span>
+                            </div>
+                            <p class="small text-secondary mb-2">Variación histórica del precio promedio de los lanzamientos anuales en Steam.</p>
+                            <div class="chart-box" style="height: 250px;">
+                                <canvas id="chartEvolucionPrecio" role="img" aria-label="Gráfico de líneas de evolución de precio promedio por año"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 2. Total_Juegos by Año -->
+                    <div class="col-lg-6">
+                        <div class="card card-bi p-3 h-100">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h2 class="h6 text-info fw-bold mb-0">2. Total_Juegos por Año de Lanzamiento</h2>
+                                <span class="badge bg-dark border border-secondary text-secondary">Volumen anual</span>
+                            </div>
+                            <p class="small text-secondary mb-2">Crecimiento de la oferta anual de títulos publicados en la tienda de Steam.</p>
+                            <div class="chart-box" style="height: 250px;">
+                                <canvas id="chartEvolucionJuegos" role="img" aria-label="Gráfico de líneas de cantidad de juegos lanzados por año"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 3. Total_Juegos by Tipo_Plataforma -->
+                    <div class="col-md-6">
+                        <div class="card card-bi p-3 h-100">
+                            <h2 class="h6 text-info fw-bold mb-1">3. Distribución por Tipo_Plataforma</h2>
+                            <p class="small text-secondary mb-2">Exclusivos Windows vs. Multiplataforma (soporte en macOS o Linux).</p>
+                            <div class="chart-box" style="height: 240px;">
+                                <canvas id="chartPlataforma" role="img" aria-label="Gráfico circular de exclusivos Windows vs multiplataforma"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 4. Total_Juegos by Tipo_Monetizacion -->
+                    <div class="col-md-6">
+                        <div class="card card-bi p-3 h-100">
+                            <h2 class="h6 text-info fw-bold mb-1">4. Total_Juegos por Tipo_Monetizacion</h2>
+                            <p class="small text-secondary mb-2">Proporción entre Juegos Pagos y Juegos Gratuitos (Free to Play).</p>
+                            <div class="chart-box" style="height: 240px;">
+                                <canvas id="chartMonetizacion" role="img" aria-label="Gráfico circular de juegos pagos vs gratuitos"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 5. Total_Juegos by Géneros -->
+                    <div class="col-lg-6">
+                        <div class="card card-bi p-3 h-100">
+                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                                <h2 class="h6 text-info fw-bold mb-0">5. Total_Juegos por Géneros (Top 12)</h2>
+                                <div class="btn-group btn-group-sm" role="group" aria-label="Modo de agrupación de géneros">
+                                    <button type="button" id="btn-gen-combo" class="btn btn-outline-info active">Combinación (TP2)</button>
+                                    <button type="button" id="btn-gen-indiv" class="btn btn-outline-info">Individual</button>
+                                </div>
+                            </div>
+                            <div class="chart-box" style="height: 320px;">
+                                <canvas id="chartGenerosHoja1" role="img" aria-label="Gráfico de barras horizontales de juegos por género"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 6. Total_Juegos by Desarrollador -->
+                    <div class="col-lg-6">
+                        <div class="card card-bi p-3 h-100">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h2 class="h6 text-info fw-bold mb-0">6. Total_Juegos por Desarrollador (Top 12)</h2>
+                                <span class="badge bg-dark border border-secondary text-secondary">Estudios líderes</span>
+                            </div>
+                            <div class="chart-box" style="height: 320px;">
+                                <canvas id="chartDesarrolladores" role="img" aria-label="Gráfico de barras horizontales de estudios desarrolladores con más juegos"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 7. Count of ID_Juego and Precio_Promedio by Clasificación por edad -->
+                    <div class="col-12">
+                        <div class="card card-bi p-3">
+                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                                <div>
+                                    <h2 class="h6 text-info fw-bold mb-0">7. Cantidad de Juegos y Precio Promedio por Clasificación de Edad (Required_Age &gt; 0)</h2>
+                                    <p class="small text-secondary mb-0">Comparativa combinada del volumen de títulos con restricción de edad y su precio promedio en USD.</p>
+                                </div>
+                                <span class="badge bg-dark border border-secondary text-secondary">Barras + Línea</span>
+                            </div>
+                            <div class="chart-box" style="height: 290px;">
+                                <canvas id="chartEdad" role="img" aria-label="Gráfico combinado de cantidad de juegos y precio promedio por clasificación de edad"></canvas>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                {% endfor %}
             </div>
-        </section>
-        {% endif %}
+
+            <!-- ================================================================== -->
+            <!-- HOJA 2: PRECIO VS. METASCORE (SCATTER INTERACTIVO DEL TP2)         -->
+            <!-- ================================================================== -->
+            <div class="tab-pane fade" id="pane-hoja2" role="tabpanel" aria-labelledby="tab-hoja2-btn">
+                <div class="row g-4">
+                    <div class="col-lg-9">
+                        <div class="card card-bi p-3 h-100">
+                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                                <div>
+                                    <h2 class="h5 text-info fw-bold mb-0">Average of Precio y Metascore_Promedio por Géneros</h2>
+                                    <p class="small text-secondary mb-0">
+                                        Cada punto representa una combinación de géneros con calificación en Metacritic (&gt; 0). Pasá el cursor para inspeccionar precio promedio, puntaje y volumen.
+                                    </p>
+                                </div>
+                                <span id="badge-grupos-scatter" class="badge bg-primary">Cargando grupos…</span>
+                            </div>
+                            <div class="chart-box" style="height: 460px;">
+                                <canvas id="chartScatterMetascore" role="img" aria-label="Gráfico de dispersión entre precio promedio y Metascore promedio por género"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-3">
+                        <div class="card card-bi p-3 h-100 d-flex flex-column justify-content-between">
+                            <div>
+                                <h3 class="h6 text-white fw-bold border-bottom border-secondary pb-2 mb-3">📌 Hallazgos clave (Hoja 2)</h3>
+                                <ul class="small text-secondary ps-3 mb-3">
+                                    <li class="mb-2">
+                                        <strong class="text-light">Concentración competitiva:</strong> La mayor densidad de combinaciones de géneros se ubica entre <strong class="text-info">$5 y $20 USD</strong> (500 a 2.000 centavos) con un Metascore de <strong class="text-info">68 a 82 puntos</strong>.
+                                    </li>
+                                    <li class="mb-2">
+                                        <strong class="text-light">Calidad independiente del precio:</strong> Los títulos indie y de precio medio alcanzan calificaciones críticas equivalentes a lanzamientos de $40–$60 USD.
+                                    </li>
+                                    <li>
+                                        <strong class="text-light">Filtro en vivo:</strong> Usá los segmentadores superiores para aislar cómo se desplaza la nube de puntos en juegos exclusivos de Windows o multiplataforma.
+                                    </li>
+                                </ul>
+                            </div>
+                            <div class="p-3 rounded bg-dark border border-secondary">
+                                <span class="small text-secondary d-block">Top combinación por volumen con Metascore:</span>
+                                <strong id="scatter-top-genero" class="text-info d-block mt-1">—</strong>
+                                <span id="scatter-top-detalle" class="small text-light">—</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================================================================== -->
+            <!-- HOJA 3: PUBLICACIÓN E IDIOMAS (TORTA + BARRAS DEL TP2)             -->
+            <!-- ================================================================== -->
+            <div class="tab-pane fade" id="pane-hoja3" role="tabpanel" aria-labelledby="tab-hoja3-btn">
+                <div class="row g-4">
+                    <div class="col-lg-5">
+                        <div class="card card-bi p-3 h-100">
+                            <h2 class="h5 text-info fw-bold mb-1">1. Total_Juegos por Tipo_Publicacion</h2>
+                            <p class="small text-secondary mb-3">
+                                Autopublicado / Indie (desarrollador = editor, excluyendo grandes publishers AAA) vs. Distribución Tradicional / Publisher.
+                            </p>
+                            <div class="chart-box" style="height: 310px;">
+                                <canvas id="chartTipoPublicacion" role="img" aria-label="Gráfico circular de juegos autopublicados vs distribución tradicional"></canvas>
+                            </div>
+                            <div class="row text-center mt-3 pt-2 border-top border-secondary">
+                                <div class="col-6">
+                                    <span class="small text-secondary d-block">Autopublicado / Indie</span>
+                                    <strong id="lbl-autopublicado" class="text-info fs-5">—</strong>
+                                </div>
+                                <div class="col-6">
+                                    <span class="small text-secondary d-block">Distribución Tradicional</span>
+                                    <strong id="lbl-tradicional" class="text-primary fs-5">—</strong>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-7">
+                        <div class="card card-bi p-3 h-100">
+                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                                <div>
+                                    <h2 class="h5 text-info fw-bold mb-0">2. Alcance de Catálogo por Idiomas (Top 15)</h2>
+                                    <p class="small text-secondary mb-0">Cobertura lingüística para maximizar propietarios y mercados internacionales.</p>
+                                </div>
+                                <div class="btn-group btn-group-sm" role="group" aria-label="Modo de visualización de idiomas">
+                                    <button type="button" id="btn-idi-indiv" class="btn btn-outline-info active">Idiomas Normalizados</button>
+                                    <button type="button" id="btn-idi-combo" class="btn btn-outline-info">Combinaciones Crudas (TP2)</button>
+                                </div>
+                            </div>
+                            <div class="chart-box" style="height: 360px;">
+                                <canvas id="chartIdiomas" role="img" aria-label="Gráfico de barras de cobertura de juegos por idioma"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================================================================== -->
+            <!-- PESTAÑA 4: RESPALDO POWER BI (.PBIX EN NUBE + LÁMINAS ORIGINALES)  -->
+            <!-- ================================================================== -->
+            <div class="tab-pane fade" id="pane-respaldo" role="tabpanel" aria-labelledby="tab-respaldo-btn">
+                <div class="card card-bi p-3 mb-4">
+                    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+                        <div>
+                            <h2 class="h5 text-info fw-bold mb-1">☁️ Informe Original en Power BI Service y Archivo .pbix</h2>
+                            <p class="small text-secondary mb-2">
+                                El archivo fuente <code>exploracion-visualizacion-datos-steam.pbix</code> del TP2 se encuentra publicado en el área de trabajo de Power BI Service.
+                                Debido a las políticas del tenant institucional de Microsoft 365 (que restringen <em>Publicar en la web</em> público y requieren licencia Power BI Pro / Fabric del lector para <code>&lt;iframe&gt;</code> autenticado), las 3 hojas fueron reconstruidas de forma nativa e interactiva en las pestañas anteriores conectadas en vivo a <code>database.db</code>.
+                            </p>
+                        </div>
+                        <a href="https://app.powerbi.com/groups/me/reports/2f50fa7f-07ca-4ea9-8076-83ae2e763343/b02d4cc564e966c2fab3"
+                           target="_blank"
+                           rel="noopener noreferrer"
+                           class="btn btn-sm btn-outline-info">
+                            🔗 Abrir reporte en Power BI Service ↗
+                        </a>
+                    </div>
+                </div>
+
+                {% if powerbi_embed_url %}
+                <section class="mb-4">
+                    <h3 class="h5 text-info fw-bold mb-3">📈 Iframe Power BI Configurado</h3>
+                    <div class="card card-bi p-2 shadow-sm">
+                        <div class="ratio ratio-16x9">
+                            <iframe
+                                src="{{ powerbi_embed_url }}"
+                                title="Tablero interactivo de Power BI - DevPrice"
+                                class="rounded border border-secondary"
+                                allowfullscreen>
+                            </iframe>
+                        </div>
+                    </div>
+                </section>
+                {% endif %}
+
+                {% if imagenes_bi %}
+                <section>
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                        <h3 class="h5 text-info fw-bold mb-0">🖼️ Láminas Originales Exportadas de Power BI Desktop (TP2)</h3>
+                        <span class="small text-secondary">Hacé clic en cualquier tablero para inspeccionarlo en alta resolución</span>
+                    </div>
+                    <div class="row g-4">
+                        {% for img in imagenes_bi %}
+                        {% set img_url = url_for('static', filename='assets_powerbi/' + img) %}
+                        <div class="{{ 'col-12' if (loop.first and imagenes_bi|length is odd) else 'col-md-6' }}">
+                            <div class="card card-bi p-2 shadow-sm h-100">
+                                <div class="d-flex justify-content-between align-items-center px-2 py-1">
+                                    <span class="small fw-bold text-light">Tablero Power BI — Hoja {{ loop.index }}</span>
+                                    <span class="badge bg-dark border border-secondary text-info">🔍 Ampliar</span>
+                                </div>
+                                <button
+                                    type="button"
+                                    class="bi-zoom-btn"
+                                    data-bi-src="{{ img_url }}"
+                                    data-bi-title="Tablero Power BI — Hoja {{ loop.index }}"
+                                    aria-label="Ampliar Tablero Power BI Hoja {{ loop.index }}"
+                                >
+                                    <img src="{{ img_url }}"
+                                         class="img-fluid rounded border border-secondary bi-thumb-img"
+                                         alt="Tablero analítico de Power BI {{ loop.index }}">
+                                </button>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </section>
+                {% endif %}
+            </div>
+        </div>
     </main>
 
+    <!-- MODAL DE ZOOM PARA LAS LÁMINAS DE POWER BI -->
     <dialog id="modal-powerbi" class="bi-dialog" aria-labelledby="modal-powerbi-title">
         <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom border-secondary">
             <h2 id="modal-powerbi-title" class="h6 text-white fw-bold mb-0">Tablero Power BI</h2>
@@ -161,6 +510,12 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
+        // Estado inicial hidratado desde Flask/SQLite
+        let datosActuales = {{ metricas_json | tojson }};
+        let modoGeneros = 'combo';   // 'combo' | 'indiv'
+        let modoIdiomas = 'indiv';   // 'indiv' | 'combo'
+
+        // Modal de zoom para capturas de respaldo Power BI
         (function () {
             const modalBi = document.getElementById('modal-powerbi');
             const modalImg = document.getElementById('modal-powerbi-img');
@@ -185,58 +540,514 @@
                 });
             }
         })();
+
+        // Configuración global de Chart.js en modo oscuro
         Chart.defaults.color = '#c9d1d9';
         Chart.defaults.borderColor = '#30363d';
 
-        new Chart(document.getElementById('chartRangos'), {
-            type: 'bar',
-            data: {
-                labels: ['Gratis ($0)', '$0.01 - $10', '$10.01 - $30', 'Más de $30'],
-                datasets: [{
-                    label: 'Cantidad de juegos',
-                    data: {{ rangos_valores | tojson }},
-                    backgroundColor: ['#ffea00', '#00ff66', '#58a6ff', '#ff7b72']
-                }]
-            },
-            options: { plugins: { legend: { display: false } } }
-        });
+        const fmtEntero = (n) => Number(n || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 });
+        const fmtDecimal = (n) => Number(n || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-        new Chart(document.getElementById('chartModelo'), {
-            type: 'doughnut',
-            data: {
-                labels: ['Juegos Pagos', 'Gratuitos (Free to Play)'],
-                datasets: [{
-                    data: [{{ pagos }}, {{ gratis }}],
-                    backgroundColor: ['#58a6ff', '#ffea00']
-                }]
+        // Paleta por género principal para el gráfico de dispersión (Hoja 2)
+        const COLORES_GENERO = {
+            'Acción': '#388bfd',
+            'Aventura': '#3fb950',
+            'Independiente': '#a371f7',
+            'Juegos de Rol': '#f78166',
+            'Estrategia': '#d29922',
+            'Simulación': '#56d4dd',
+            'Casual': '#ff7b72',
+            'Deportes': '#79c0ff',
+            'Carreras': '#ffa657',
+            'Multijugador Masivo': '#d2a8ff',
+        };
+        function colorParaGenero(g) {
+            return COLORES_GENERO[g] || '#58a6ff';
+        }
+
+        // Instancias Chart.js
+        let chartEvolucionPrecio, chartEvolucionJuegos, chartPlataforma, chartMonetizacion;
+        let chartGenerosHoja1, chartDesarrolladores, chartEdad;
+        let chartScatterMetascore, chartTipoPublicacion, chartIdiomas;
+
+        function inicializarGraficos(d) {
+            // 1. Evolución de Precio Promedio por Año
+            chartEvolucionPrecio = new Chart(document.getElementById('chartEvolucionPrecio'), {
+                type: 'line',
+                data: {
+                    labels: d.evolucion_anual.anios,
+                    datasets: [{
+                        label: 'Precio Promedio (USD)',
+                        data: d.evolucion_anual.precio_promedio_usd,
+                        borderColor: '#2f81f7',
+                        backgroundColor: 'rgba(47, 129, 247, 0.15)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 2.5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => `Precio promedio: $${ctx.parsed.y.toFixed(2)} USD (${Math.round(ctx.parsed.y * 100)} ¢)`
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { callback: (v) => '$' + v }
+                        }
+                    }
+                }
+            });
+
+            // 2. Evolución de Lanzamientos por Año
+            chartEvolucionJuegos = new Chart(document.getElementById('chartEvolucionJuegos'), {
+                type: 'line',
+                data: {
+                    labels: d.evolucion_anual.anios,
+                    datasets: [{
+                        label: 'Juegos publicados',
+                        data: d.evolucion_anual.lanzamientos,
+                        borderColor: '#3fb950',
+                        backgroundColor: 'rgba(63, 185, 80, 0.15)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 2.5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+
+            // 3. Exclusivo Windows vs Multiplataforma
+            chartPlataforma = new Chart(document.getElementById('chartPlataforma'), {
+                type: 'doughnut',
+                data: {
+                    labels: d.exclusividad.labels,
+                    datasets: [{
+                        data: d.exclusividad.valores,
+                        backgroundColor: ['#2f81f7', '#6e7681'],
+                        borderColor: '#161b22',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'right' },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => {
+                                    const pct = d.exclusividad.porcentajes[ctx.dataIndex] || 0;
+                                    return `${ctx.label}: ${fmtEntero(ctx.parsed)} (${fmtDecimal(pct)}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // 4. Monetización: Pago vs Gratuito
+            chartMonetizacion = new Chart(document.getElementById('chartMonetizacion'), {
+                type: 'doughnut',
+                data: {
+                    labels: d.monetizacion.labels,
+                    datasets: [{
+                        data: d.monetizacion.valores,
+                        backgroundColor: ['#1f6feb', '#8b5cf6'],
+                        borderColor: '#161b22',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'right' },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => {
+                                    const pct = d.monetizacion.porcentajes[ctx.dataIndex] || 0;
+                                    return `${ctx.label}: ${fmtEntero(ctx.parsed)} (${fmtDecimal(pct)}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // 5. Top Géneros (Hoja 1)
+            chartGenerosHoja1 = new Chart(document.getElementById('chartGenerosHoja1'), {
+                type: 'bar',
+                data: {
+                    labels: modoGeneros === 'combo' ? d.top_generos.labels : d.top_generos.individuales_labels,
+                    datasets: [{
+                        label: 'Cantidad de juegos',
+                        data: modoGeneros === 'combo' ? d.top_generos.valores : d.top_generos.individuales_valores,
+                        backgroundColor: '#2f81f7'
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } }
+                }
+            });
+
+            // 6. Top Desarrolladores (Hoja 1)
+            chartDesarrolladores = new Chart(document.getElementById('chartDesarrolladores'), {
+                type: 'bar',
+                data: {
+                    labels: d.top_desarrolladores.labels,
+                    datasets: [{
+                        label: 'Cantidad de juegos',
+                        data: d.top_desarrolladores.valores,
+                        backgroundColor: '#388bfd'
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } }
+                }
+            });
+
+            // 7. Clasificación por Edad (Barras Cantidad + Línea Precio Promedio USD)
+            chartEdad = new Chart(document.getElementById('chartEdad'), {
+                data: {
+                    labels: d.clasificacion_edad.labels,
+                    datasets: [
+                        {
+                            type: 'bar',
+                            label: 'Cantidad de Juegos',
+                            data: d.clasificacion_edad.cantidades,
+                            backgroundColor: '#2f81f7',
+                            yAxisID: 'yCantidad',
+                            order: 2
+                        },
+                        {
+                            type: 'line',
+                            label: 'Precio Promedio (USD)',
+                            data: d.clasificacion_edad.precio_promedio_usd,
+                            borderColor: '#a371f7',
+                            backgroundColor: '#a371f7',
+                            tension: 0.35,
+                            pointRadius: 4,
+                            yAxisID: 'yPrecio',
+                            order: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    scales: {
+                        yCantidad: {
+                            type: 'linear',
+                            position: 'left',
+                            beginAtZero: true,
+                            title: { display: true, text: 'Cantidad de Juegos' }
+                        },
+                        yPrecio: {
+                            type: 'linear',
+                            position: 'right',
+                            beginAtZero: true,
+                            grid: { drawOnChartArea: false },
+                            title: { display: true, text: 'Precio Promedio (USD)' },
+                            ticks: { callback: (v) => '$' + v }
+                        }
+                    }
+                }
+            });
+
+            // Hoja 2: Scatter Precio Promedio vs Metascore Promedio por Géneros
+            chartScatterMetascore = new Chart(document.getElementById('chartScatterMetascore'), {
+                type: 'scatter',
+                data: {
+                    datasets: [{
+                        label: 'Combinaciones de Géneros',
+                        data: d.dispersion_precio_metascore,
+                        backgroundColor: d.dispersion_precio_metascore.map((p) => colorParaGenero(p.genero_principal)),
+                        pointRadius: d.dispersion_precio_metascore.map((p) => Math.min(11, Math.max(4, Math.sqrt(p.cantidad) * 0.9))),
+                        pointHoverRadius: 9
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => {
+                                    const raw = ctx.raw;
+                                    return [
+                                        `Géneros: ${raw.genero}`,
+                                        `Precio promedio: $${raw.x.toFixed(2)} USD (${raw.x_centavos} ¢)`,
+                                        `Metascore promedio: ${raw.y.toFixed(2)} pts`,
+                                        `Juegos calificados: ${raw.cantidad}`
+                                    ];
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Precio Promedio (USD)' },
+                            beginAtZero: true,
+                            ticks: { callback: (v) => '$' + v }
+                        },
+                        y: {
+                            title: { display: true, text: 'Metascore Promedio' },
+                            suggestedMin: 30,
+                            suggestedMax: 100
+                        }
+                    }
+                }
+            });
+
+            // Hoja 3: Tipo de Publicación
+            chartTipoPublicacion = new Chart(document.getElementById('chartTipoPublicacion'), {
+                type: 'doughnut',
+                data: {
+                    labels: d.tipo_publicacion.labels,
+                    datasets: [{
+                        data: d.tipo_publicacion.valores,
+                        backgroundColor: ['#2f81f7', '#6e7681'],
+                        borderColor: '#161b22',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => {
+                                    const pct = d.tipo_publicacion.porcentajes[ctx.dataIndex] || 0;
+                                    return `${ctx.label}: ${fmtEntero(ctx.parsed)} (${fmtDecimal(pct)}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Hoja 3: Idiomas
+            chartIdiomas = new Chart(document.getElementById('chartIdiomas'), {
+                type: 'bar',
+                data: {
+                    labels: modoIdiomas === 'indiv' ? d.top_idiomas.labels : d.top_idiomas.combinaciones_labels,
+                    datasets: [{
+                        label: 'Cantidad de juegos',
+                        data: modoIdiomas === 'indiv' ? d.top_idiomas.valores : d.top_idiomas.combinaciones_valores,
+                        backgroundColor: '#2f81f7'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { ticks: { maxRotation: 45, minRotation: 25 } },
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+
+            actualizarTextosAuxiliares(d);
+        }
+
+        function actualizarTextosAuxiliares(d) {
+            // KPIs
+            document.getElementById('kpi-total-juegos').textContent = fmtEntero(d.total_juegos);
+            document.getElementById('kpi-total-juegos-sub').textContent =
+                `Pagos: ${fmtEntero(d.pagos)} · Gratis: ${fmtEntero(d.gratis)}`;
+            document.getElementById('kpi-precio-prom').innerHTML =
+                `$${d.prom} <small class="fs-6 fw-normal">USD</small>`;
+            document.getElementById('kpi-precio-prom-sub').textContent =
+                `General: $${Number(d.precio_promedio_general_usd).toFixed(2)} (${fmtDecimal(d.precio_promedio_centavos)} ¢ en PBI)`;
+            document.getElementById('kpi-descuento-prom').textContent =
+                `${fmtDecimal(d.descuento_promedio_pct)}%`;
+            document.getElementById('kpi-max-precio-sub').textContent =
+                `Tope catálogo: $${d.max_precio} USD`;
+            document.getElementById('kpi-positivas-prom').textContent =
+                fmtEntero(Math.round(d.resenas_positivas_promedio));
+            document.getElementById('kpi-positivas-prom-sub').textContent =
+                `Equivalente PBI: ${fmtDecimal(d.resenas_positivas_promedio / 1000.0)}K`;
+            document.getElementById('kpi-metascore-prom').textContent =
+                fmtDecimal(d.metascore_promedio);
+            document.getElementById('kpi-metascore-sub').textContent =
+                `Sobre ${fmtEntero(d.juegos_con_metascore)} títulos calificados (> 0)`;
+            document.getElementById('kpi-win').textContent = fmtEntero(d.juegos_windows);
+            document.getElementById('kpi-mac').textContent = fmtEntero(d.juegos_mac);
+            document.getElementById('kpi-linux').textContent = fmtEntero(d.juegos_linux);
+
+            // Resumen Hoja 2
+            const pts = d.dispersion_precio_metascore || [];
+            document.getElementById('badge-grupos-scatter').textContent =
+                `${pts.length} grupos de géneros`;
+            if (pts.length > 0) {
+                const topG = pts[0];
+                document.getElementById('scatter-top-genero').textContent = topG.genero;
+                document.getElementById('scatter-top-detalle').textContent =
+                    `${fmtEntero(topG.cantidad)} títulos · $${topG.x.toFixed(2)} USD prom. · Metascore ${topG.y.toFixed(2)}`;
+            } else {
+                document.getElementById('scatter-top-genero').textContent = 'Sin datos para este filtro';
+                document.getElementById('scatter-top-detalle').textContent = 'Probá limpiar los segmentadores';
             }
+
+            // Resumen Hoja 3
+            const valAuto = d.tipo_publicacion.valores[0] || 0;
+            const pctAuto = d.tipo_publicacion.porcentajes[0] || 0;
+            const valTrad = d.tipo_publicacion.valores[1] || 0;
+            const pctTrad = d.tipo_publicacion.porcentajes[1] || 0;
+            document.getElementById('lbl-autopublicado').textContent =
+                `${fmtEntero(valAuto)} (${fmtDecimal(pctAuto)}%)`;
+            document.getElementById('lbl-tradicional').textContent =
+                `${fmtEntero(valTrad)} (${fmtDecimal(pctTrad)}%)`;
+        }
+
+        function actualizarGraficosConDatos(d) {
+            datosActuales = d;
+            actualizarTextosAuxiliares(d);
+
+            chartEvolucionPrecio.data.labels = d.evolucion_anual.anios;
+            chartEvolucionPrecio.data.datasets[0].data = d.evolucion_anual.precio_promedio_usd;
+            chartEvolucionPrecio.update();
+
+            chartEvolucionJuegos.data.labels = d.evolucion_anual.anios;
+            chartEvolucionJuegos.data.datasets[0].data = d.evolucion_anual.lanzamientos;
+            chartEvolucionJuegos.update();
+
+            chartPlataforma.data.labels = d.exclusividad.labels;
+            chartPlataforma.data.datasets[0].data = d.exclusividad.valores;
+            chartPlataforma.update();
+
+            chartMonetizacion.data.labels = d.monetizacion.labels;
+            chartMonetizacion.data.datasets[0].data = d.monetizacion.valores;
+            chartMonetizacion.update();
+
+            chartGenerosHoja1.data.labels =
+                modoGeneros === 'combo' ? d.top_generos.labels : d.top_generos.individuales_labels;
+            chartGenerosHoja1.data.datasets[0].data =
+                modoGeneros === 'combo' ? d.top_generos.valores : d.top_generos.individuales_valores;
+            chartGenerosHoja1.update();
+
+            chartDesarrolladores.data.labels = d.top_desarrolladores.labels;
+            chartDesarrolladores.data.datasets[0].data = d.top_desarrolladores.valores;
+            chartDesarrolladores.update();
+
+            chartEdad.data.labels = d.clasificacion_edad.labels;
+            chartEdad.data.datasets[0].data = d.clasificacion_edad.cantidades;
+            chartEdad.data.datasets[1].data = d.clasificacion_edad.precio_promedio_usd;
+            chartEdad.update();
+
+            const pts = d.dispersion_precio_metascore || [];
+            chartScatterMetascore.data.datasets[0].data = pts;
+            chartScatterMetascore.data.datasets[0].backgroundColor = pts.map((p) => colorParaGenero(p.genero_principal));
+            chartScatterMetascore.data.datasets[0].pointRadius = pts.map((p) => Math.min(11, Math.max(4, Math.sqrt(p.cantidad) * 0.9)));
+            chartScatterMetascore.update();
+
+            chartTipoPublicacion.data.labels = d.tipo_publicacion.labels;
+            chartTipoPublicacion.data.datasets[0].data = d.tipo_publicacion.valores;
+            chartTipoPublicacion.update();
+
+            chartIdiomas.data.labels =
+                modoIdiomas === 'indiv' ? d.top_idiomas.labels : d.top_idiomas.combinaciones_labels;
+            chartIdiomas.data.datasets[0].data =
+                modoIdiomas === 'indiv' ? d.top_idiomas.valores : d.top_idiomas.combinaciones_valores;
+            chartIdiomas.update();
+        }
+
+        // Fetch dinámico contra /api/dashboard/metricas al cambiar cualquier segmentador
+        const selMonetizacion = document.getElementById('filtro-monetizacion');
+        const selPlataforma = document.getElementById('filtro-plataforma');
+        const selGenero = document.getElementById('filtro-genero');
+        const btnLimpiar = document.getElementById('btn-limpiar-filtros');
+        const badgeCarga = document.getElementById('estado-carga-bi');
+
+        async function recargarMetricasEnVivo() {
+            const params = new URLSearchParams({
+                monetizacion: selMonetizacion.value,
+                plataforma: selPlataforma.value,
+                genero: selGenero.value
+            });
+            badgeCarga.classList.remove('d-none');
+            try {
+                const resp = await fetch(`/api/dashboard/metricas?${params.toString()}`);
+                if (resp.ok) {
+                    const nuevosDatos = await resp.json();
+                    actualizarGraficosConDatos(nuevosDatos);
+                }
+            } catch (err) {
+                console.error('Error al actualizar métricas del dashboard:', err);
+            } finally {
+                badgeCarga.classList.add('d-none');
+            }
+        }
+
+        [selMonetizacion, selPlataforma, selGenero].forEach((el) => {
+            el.addEventListener('change', recargarMetricasEnVivo);
         });
 
-        new Chart(document.getElementById('chartGeneros'), {
-            type: 'bar',
-            data: {
-                labels: {{ generos_labels | tojson }},
-                datasets: [{
-                    label: 'Cantidad de títulos',
-                    data: {{ generos_valores | tojson }},
-                    backgroundColor: '#2ea043'
-                }]
-            },
-            options: { indexAxis: 'y', plugins: { legend: { display: false } } }
+        btnLimpiar.addEventListener('click', () => {
+            selMonetizacion.value = 'todos';
+            selPlataforma.value = 'todas';
+            selGenero.value = '';
+            recargarMetricasEnVivo();
         });
 
-        new Chart(document.getElementById('chartTopPrecios'), {
-            type: 'bar',
-            data: {
-                labels: {{ top_juegos_labels | tojson }},
-                datasets: [{
-                    label: 'Precio (USD)',
-                    data: {{ top_juegos_valores | tojson }},
-                    backgroundColor: '#a371f7'
-                }]
-            },
-            options: { indexAxis: 'y', plugins: { legend: { display: false } } }
+        // Botones de alternancia en Hoja 1 (Géneros: Combinación TP2 vs Individual)
+        const btnGenCombo = document.getElementById('btn-gen-combo');
+        const btnGenIndiv = document.getElementById('btn-gen-indiv');
+        btnGenCombo.addEventListener('click', () => {
+            modoGeneros = 'combo';
+            btnGenCombo.classList.add('active');
+            btnGenIndiv.classList.remove('active');
+            actualizarGraficosConDatos(datosActuales);
         });
+        btnGenIndiv.addEventListener('click', () => {
+            modoGeneros = 'indiv';
+            btnGenIndiv.classList.add('active');
+            btnGenCombo.classList.remove('active');
+            actualizarGraficosConDatos(datosActuales);
+        });
+
+        // Botones de alternancia en Hoja 3 (Idiomas Normalizados vs Combinaciones Crudas TP2)
+        const btnIdiIndiv = document.getElementById('btn-idi-indiv');
+        const btnIdiCombo = document.getElementById('btn-idi-combo');
+        btnIdiIndiv.addEventListener('click', () => {
+            modoIdiomas = 'indiv';
+            btnIdiIndiv.classList.add('active');
+            btnIdiCombo.classList.remove('active');
+            actualizarGraficosConDatos(datosActuales);
+        });
+        btnIdiCombo.addEventListener('click', () => {
+            modoIdiomas = 'combo';
+            btnIdiCombo.classList.add('active');
+            btnIdiIndiv.classList.remove('active');
+            actualizarGraficosConDatos(datosActuales);
+        });
+
+        // Inicializar al cargar el DOM
+        inicializarGraficos(datosActuales);
     </script>
 </body>
 </html>

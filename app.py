@@ -804,67 +804,430 @@ def _listar_imagenes_powerbi():
         if os.path.isfile(os.path.join(carpeta, nombre)) and nombre.lower().endswith(extensiones)
     )
 
-def _obtener_metricas_dashboard(db):
-    """Calcula KPIs y series agregadas de la tabla juegos para el Dashboard BI."""
-    resumen = db.execute('''
+_RE_ANIO = re.compile(r'\b(19\d{2}|20\d{2})\b')
+_GRANDES_PUBLISHERS = (
+    'electronic arts',
+    'ubisoft',
+    'square enix',
+    'sega',
+    'capcom',
+    'bandai namco',
+    '2k',
+    'thq nordic',
+)
+
+
+def _normalizar_idiomas_juego(texto_idiomas):
+    """Extrae el conjunto de idiomas normalizados presentes en la celda cruda de un juego."""
+    if not texto_idiomas:
+        return set()
+    limpio = str(texto_idiomas)
+    limpio = re.sub(r'<br>.*$', '', limpio, flags=re.IGNORECASE)
+    limpio = re.sub(r'languages with full audio support.*$', '', limpio, flags=re.IGNORECASE)
+    limpio = re.sub(r'con soporte de audio completo.*$', '', limpio, flags=re.IGNORECASE)
+    limpio = re.sub(r'^Idiomas\s+', '', limpio, flags=re.IGNORECASE)
+    limpio = limpio.replace('<strong>*</strong>', '').replace('*', '')
+
+    idiomas_encontrados = set()
+    for parte in limpio.split(','):
+        clave = parte.strip().lower()
+        if not clave:
+            continue
+        if "españa" in clave and "américa latina" in clave:
+            idiomas_encontrados.add("Español (España)")
+            idiomas_encontrados.add("Español (Latinoamérica)")
+        elif "portugal" in clave and "brasil" in clave:
+            idiomas_encontrados.add("Portugués (Portugal)")
+            idiomas_encontrados.add("Portugués (Brasil)")
+        elif clave in SINONIMOS_IDIOMAS:
+            idiomas_encontrados.add(SINONIMOS_IDIOMAS[clave][0])
+        else:
+            idiomas_encontrados.add(parte.strip()[:1].upper() + parte.strip()[1:])
+    return idiomas_encontrados
+
+
+def _obtener_metricas_dashboard(db, monetizacion='todos', plataforma='todas', genero=''):
+    """
+    Calcula KPIs y las series de las 3 hojas del Dashboard BI (TP2) en vivo desde SQLite,
+    aplicando opcionalmente los segmentadores de monetización, plataforma y género.
+    """
+    monetizacion = (monetizacion or 'todos').strip().lower()
+    plataforma = (plataforma or 'todas').strip().lower()
+    genero = (genero or '').strip()
+
+    where_sql = " WHERE 1=1"
+    params = []
+
+    if monetizacion == 'pago':
+        where_sql += ' AND COALESCE(CAST("Is_Free" AS REAL), 0) = 0'
+    elif monetizacion == 'gratis':
+        where_sql += ' AND COALESCE(CAST("Is_Free" AS REAL), 0) = 1'
+
+    if plataforma == 'windows_only':
+        where_sql += (
+            ' AND COALESCE(CAST("Platforms_Mac" AS REAL), 0) = 0'
+            ' AND COALESCE(CAST("Platforms_Linux" AS REAL), 0) = 0'
+        )
+    elif plataforma == 'multiplataforma':
+        where_sql += (
+            ' AND (COALESCE(CAST("Platforms_Mac" AS REAL), 0) > 0'
+            ' OR COALESCE(CAST("Platforms_Linux" AS REAL), 0) > 0)'
+        )
+
+    if genero:
+        where_sql += ' AND "Generos" LIKE ?'
+        params.append(f"%{genero}%")
+
+    filas = db.execute(f'''
         SELECT
-            COUNT(*) AS total_juegos,
-            SUM(CASE WHEN CAST("Precio" AS REAL) = 0 THEN 1 ELSE 0 END) AS gratis,
-            SUM(CASE WHEN CAST("Precio" AS REAL) > 0 THEN 1 ELSE 0 END) AS pagos,
-            ROUND(AVG(CASE WHEN CAST("Precio" AS REAL) > 0 THEN CAST("Precio" AS REAL) / 100.0 END), 2) AS prom,
-            ROUND(MAX(CAST("Precio" AS REAL) / 100.0), 2) AS max_precio,
-            SUM(CASE WHEN CAST("Precio" AS REAL) > 0 AND CAST("Precio" AS REAL) <= 1000 THEN 1 ELSE 0 END) AS rango_1_10,
-            SUM(CASE WHEN CAST("Precio" AS REAL) > 1000 AND CAST("Precio" AS REAL) <= 3000 THEN 1 ELSE 0 END) AS rango_10_30,
-            SUM(CASE WHEN CAST("Precio" AS REAL) > 3000 THEN 1 ELSE 0 END) AS rango_mas_30
+            "Nombre",
+            "Desarrollador",
+            "Editor",
+            CAST("Positiva" AS REAL) AS positiva,
+            CAST("Precio" AS REAL) AS precio_centavos,
+            CAST("Descuento" AS REAL) AS descuento,
+            "Release_Date",
+            CAST("Required_Age" AS REAL) AS required_age,
+            COALESCE(CAST("Is_Free" AS REAL), 0) AS is_free,
+            "Idiomas " AS idiomas_raw,
+            COALESCE(CAST("Platforms_Windows" AS REAL), 0) AS plat_win,
+            COALESCE(CAST("Platforms_Mac" AS REAL), 0) AS plat_mac,
+            COALESCE(CAST("Platforms_Linux" AS REAL), 0) AS plat_linux,
+            CAST("Metacritic_Score" AS REAL) AS metascore,
+            "Generos"
         FROM juegos
-    ''').fetchone()
+        {where_sql}
+    ''', params).fetchall()
 
-    gratis = resumen['gratis'] or 0
-    pagos = resumen['pagos'] or 0
+    total_juegos = len(filas)
+    gratis = 0
+    pagos = 0
+    exclusivos_win = 0
+    multiplataforma = 0
+    juegos_windows = 0
+    juegos_mac = 0
+    juegos_linux = 0
 
-    contador_generos = Counter()
-    for fila in db.execute('SELECT "Generos" FROM juegos WHERE "Generos" IS NOT NULL AND TRIM("Generos") != ""'):
-        for genero in fila['Generos'].split(','):
-            limpio = genero.strip()
-            if limpio:
-                contador_generos[limpio] += 1
-    top_generos = contador_generos.most_common(10)
+    suma_precio_centavos_todos = 0.0
+    suma_precio_usd_pagos = 0.0
+    cant_precio_positivo = 0
+    max_precio_usd = 0.0
+    suma_descuento = 0.0
+    suma_positivas = 0.0
+    suma_metascore = 0.0
+    cant_metascore = 0
 
-    top_juegos = db.execute('''
-        SELECT "Nombre", ROUND(CAST("Precio" AS REAL) / 100.0, 2) AS precio_usd
-        FROM juegos
-        WHERE CAST("Precio" AS REAL) > 0 AND "Nombre" IS NOT NULL AND TRIM("Nombre") != ""
-        ORDER BY CAST("Precio" AS REAL) DESC, CAST(Positiva AS INTEGER) DESC
-        LIMIT 10
-    ''').fetchall()
+    rango_0 = 0
+    rango_1_10 = 0
+    rango_10_30 = 0
+    rango_mas_30 = 0
+
+    por_anio_cant = Counter()
+    por_anio_suma_centavos = Counter()
+
+    contador_generos_indiv = Counter()
+    contador_generos_combo = Counter()
+    contador_desarrolladores = Counter()
+
+    por_edad_cant = Counter()
+    por_edad_suma_centavos = Counter()
+
+    # Hoja 2: dispersión Precio vs Metascore agrupada por combinación de Géneros
+    scatter_grupos = {}
+
+    # Hoja 3: Autopublicado vs Tradicional e Idiomas
+    autopublicados = 0
+    distribucion_tradicional = 0
+    contador_idiomas_indiv = Counter()
+    contador_idiomas_combo = Counter()
+
+    candidatos_top_precio = []
+
+    for f in filas:
+        precio_c = f['precio_centavos'] or 0.0
+        precio_u = precio_c / 100.0
+        is_free_val = 1 if (f['is_free'] or 0) >= 1 else 0
+
+        if is_free_val == 1:
+            gratis += 1
+        else:
+            pagos += 1
+
+        if precio_c <= 0:
+            rango_0 += 1
+        elif precio_c <= 1000:
+            rango_1_10 += 1
+        elif precio_c <= 3000:
+            rango_10_30 += 1
+        else:
+            rango_mas_30 += 1
+
+        suma_precio_centavos_todos += precio_c
+        if precio_c > 0:
+            suma_precio_usd_pagos += precio_u
+            cant_precio_positivo += 1
+            if precio_u > max_precio_usd:
+                max_precio_usd = precio_u
+            if f['Nombre']:
+                candidatos_top_precio.append((precio_c, f['positiva'] or 0.0, f['Nombre'], round(precio_u, 2)))
+
+        suma_descuento += (f['descuento'] or 0.0)
+        suma_positivas += (f['positiva'] or 0.0)
+
+        win = 1 if (f['plat_win'] or 0) > 0 else 0
+        mac = 1 if (f['plat_mac'] or 0) > 0 else 0
+        lin = 1 if (f['plat_linux'] or 0) > 0 else 0
+        juegos_windows += win
+        juegos_mac += mac
+        juegos_linux += lin
+
+        if mac == 0 and lin == 0:
+            exclusivos_win += 1
+        else:
+            multiplataforma += 1
+
+        # Evolución por año (1997-2026)
+        rel = f['Release_Date']
+        if rel:
+            m_anio = _RE_ANIO.search(str(rel))
+            if m_anio:
+                anio = int(m_anio.group(1))
+                if 1997 <= anio <= 2026:
+                    por_anio_cant[anio] += 1
+                    por_anio_suma_centavos[anio] += precio_c
+
+        # Géneros (combinación exacta del TP2 e individuales)
+        gen_raw = (f['Generos'] or '').strip()
+        if gen_raw:
+            contador_generos_combo[gen_raw] += 1
+            for g_item in gen_raw.split(','):
+                g_limpio = g_item.strip()
+                if g_limpio:
+                    contador_generos_indiv[g_limpio] += 1
+
+        # Desarrollador
+        dev_raw = (f['Desarrollador'] or '').strip()
+        if dev_raw and dev_raw != '0':
+            contador_desarrolladores[dev_raw] += 1
+
+        # Clasificación por edad (Required_Age > 0, igual que en Power BI Hoja 1)
+        edad_val = int(round(f['required_age'] or 0))
+        if edad_val > 0:
+            por_edad_cant[edad_val] += 1
+            por_edad_suma_centavos[edad_val] += precio_c
+
+        # Metascore (> 0) y agrupación para Hoja 2
+        meta = f['metascore'] or 0.0
+        if meta > 0:
+            suma_metascore += meta
+            cant_metascore += 1
+            clave_gen = gen_raw if gen_raw else '(Sin género)'
+            grp = scatter_grupos.get(clave_gen)
+            if grp is None:
+                scatter_grupos[clave_gen] = [1, precio_c, meta]
+            else:
+                grp[0] += 1
+                grp[1] += precio_c
+                grp[2] += meta
+
+        # Hoja 3: Tipo de publicación (Autopublicado / Indie vs. Distribución Tradicional)
+        ed_raw = (f['Editor'] or '').strip()
+        ed_low = ed_raw.lower()
+        dev_low = dev_raw.lower()
+        es_gran_publisher = any(pub in ed_low for pub in _GRANDES_PUBLISHERS)
+        if not es_gran_publisher and dev_low and (dev_low == ed_low or not ed_low or ed_low == 'independiente'):
+            autopublicados += 1
+        else:
+            distribucion_tradicional += 1
+
+        # Hoja 3: Idiomas
+        idiomas_raw = (f['idiomas_raw'] or '').strip()
+        if idiomas_raw:
+            etiqueta_combo = re.sub(r'^Idiomas\s+', '', idiomas_raw, flags=re.IGNORECASE).strip()
+            if len(etiqueta_combo) > 38:
+                etiqueta_combo = etiqueta_combo[:35] + '...'
+            if etiqueta_combo:
+                contador_idiomas_combo[etiqueta_combo] += 1
+            for idi in _normalizar_idiomas_juego(idiomas_raw):
+                contador_idiomas_indiv[idi] += 1
+
+    precio_promedio_centavos = round(suma_precio_centavos_todos / total_juegos, 2) if total_juegos > 0 else 0.0
+    precio_promedio_general_usd = round(precio_promedio_centavos / 100.0, 2)
+    precio_promedio_usd = round(suma_precio_usd_pagos / cant_precio_positivo, 2) if cant_precio_positivo > 0 else 0.0
+    descuento_promedio_pct = round(suma_descuento / total_juegos, 2) if total_juegos > 0 else 0.0
+    resenas_positivas_promedio = round(suma_positivas / total_juegos, 2) if total_juegos > 0 else 0.0
+    metascore_promedio = round(suma_metascore / cant_metascore, 2) if cant_metascore > 0 else 0.0
+
+    # Series Hoja 1: Evolución anual
+    anios_ordenados = sorted(por_anio_cant.keys())
+    evolucion_anual = {
+        "anios": anios_ordenados,
+        "lanzamientos": [por_anio_cant[a] for a in anios_ordenados],
+        "precio_promedio_usd": [
+            round((por_anio_suma_centavos[a] / por_anio_cant[a]) / 100.0, 2)
+            for a in anios_ordenados
+        ],
+        "precio_promedio_centavos": [
+            round(por_anio_suma_centavos[a] / por_anio_cant[a], 2)
+            for a in anios_ordenados
+        ],
+    }
+
+    pct_pagos = round((pagos / total_juegos) * 100, 2) if total_juegos > 0 else 0.0
+    pct_gratis = round((gratis / total_juegos) * 100, 2) if total_juegos > 0 else 0.0
+    pct_win_only = round((exclusivos_win / total_juegos) * 100, 2) if total_juegos > 0 else 0.0
+    pct_multi = round((multiplataforma / total_juegos) * 100, 2) if total_juegos > 0 else 0.0
+
+    top_gen_combo = contador_generos_combo.most_common(12)
+    top_gen_indiv = contador_generos_indiv.most_common(12)
+    top_devs = contador_desarrolladores.most_common(12)
+
+    edades_ordenadas = sorted(por_edad_cant.keys())
+    clasificacion_edad = {
+        "edades": edades_ordenadas,
+        "labels": [f"+{e} años" for e in edades_ordenadas],
+        "cantidades": [por_edad_cant[e] for e in edades_ordenadas],
+        "precio_promedio_usd": [
+            round((por_edad_suma_centavos[e] / por_edad_cant[e]) / 100.0, 2)
+            for e in edades_ordenadas
+        ],
+        "precio_promedio_centavos": [
+            round(por_edad_suma_centavos[e] / por_edad_cant[e], 2)
+            for e in edades_ordenadas
+        ],
+    }
+
+    # Series Hoja 2: Dispersión Precio vs Metascore por género/combinación
+    dispersion_precio_metascore = []
+    for gen_nombre, (cant_g, suma_p_c, suma_m) in sorted(
+        scatter_grupos.items(), key=lambda x: x[1][0], reverse=True
+    ):
+        prom_c = round(suma_p_c / cant_g, 2)
+        prom_u = round(prom_c / 100.0, 2)
+        prom_m = round(suma_m / cant_g, 2)
+        gen_principal = gen_nombre.split(',')[0].strip() if gen_nombre else 'Otro'
+        dispersion_precio_metascore.append({
+            "x": prom_u,
+            "x_centavos": prom_c,
+            "y": prom_m,
+            "genero": gen_nombre,
+            "genero_principal": gen_principal,
+            "cantidad": cant_g,
+        })
+
+    # Series Hoja 3: Publicación e Idiomas
+    pct_auto = round((autopublicados / total_juegos) * 100, 2) if total_juegos > 0 else 0.0
+    pct_trad = round((distribucion_tradicional / total_juegos) * 100, 2) if total_juegos > 0 else 0.0
+    top_idi_indiv = contador_idiomas_indiv.most_common(15)
+    top_idi_combo = contador_idiomas_combo.most_common(15)
+
+    candidatos_top_precio.sort(key=lambda x: (x[0], x[1]), reverse=True)
+    top_10_precios = candidatos_top_precio[:10]
 
     return {
-        "total_juegos": resumen['total_juegos'] or 0,
+        "filtros": {
+            "monetizacion": monetizacion,
+            "plataforma": plataforma,
+            "genero": genero,
+        },
+        # KPIs principales (compatibles con plantilla previa y con los KPIs del TP2)
+        "total_juegos": total_juegos,
         "gratis": gratis,
         "pagos": pagos,
-        "prom": f"{(resumen['prom'] or 0.0):.2f}",
-        "max_precio": f"{(resumen['max_precio'] or 0.0):.2f}",
-        "rangos_valores": [
-            gratis,
-            resumen['rango_1_10'] or 0,
-            resumen['rango_10_30'] or 0,
-            resumen['rango_mas_30'] or 0,
-        ],
-        "generos_labels": [nombre for nombre, _ in top_generos],
-        "generos_valores": [cantidad for _, cantidad in top_generos],
-        "top_juegos_labels": [fila['Nombre'] for fila in top_juegos],
-        "top_juegos_valores": [fila['precio_usd'] for fila in top_juegos],
+        "precio_promedio_usd": precio_promedio_usd,
+        "precio_promedio_general_usd": precio_promedio_general_usd,
+        "precio_promedio_centavos": precio_promedio_centavos,
+        "prom": f"{precio_promedio_usd:.2f}",
+        "max_precio_usd": round(max_precio_usd, 2),
+        "max_precio": f"{max_precio_usd:.2f}",
+        "descuento_promedio_pct": descuento_promedio_pct,
+        "resenas_positivas_promedio": resenas_positivas_promedio,
+        "metascore_promedio": metascore_promedio,
+        "juegos_con_metascore": cant_metascore,
+        "juegos_windows": juegos_windows,
+        "juegos_mac": juegos_mac,
+        "juegos_linux": juegos_linux,
+        # Hoja 1: Mercado General y Evolución
+        "evolucion_anual": evolucion_anual,
+        "monetizacion": {
+            "labels": ["Juego Pago", "Juego Gratuito (F2P)"],
+            "valores": [pagos, gratis],
+            "porcentajes": [pct_pagos, pct_gratis],
+        },
+        "exclusividad": {
+            "labels": ["Exclusivo Windows", "Multiplataforma (Mac / Linux)"],
+            "valores": [exclusivos_win, multiplataforma],
+            "porcentajes": [pct_win_only, pct_multi],
+        },
+        "top_generos": {
+            "labels": [g for g, _ in top_gen_combo],
+            "valores": [c for _, c in top_gen_combo],
+            "individuales_labels": [g for g, _ in top_gen_indiv],
+            "individuales_valores": [c for _, c in top_gen_indiv],
+        },
+        "top_desarrolladores": {
+            "labels": [d for d, _ in top_devs],
+            "valores": [c for _, c in top_devs],
+        },
+        "clasificacion_edad": clasificacion_edad,
+        # Hoja 2: Precio vs. Calidad (Metacritic_Score)
+        "dispersion_precio_metascore": dispersion_precio_metascore,
+        # Hoja 3: Publicación e Idiomas
+        "tipo_publicacion": {
+            "labels": ["Autopublicado / Indie", "Distribución Tradicional / Publisher"],
+            "valores": [autopublicados, distribucion_tradicional],
+            "porcentajes": [pct_auto, pct_trad],
+        },
+        "top_idiomas": {
+            "labels": [i for i, _ in top_idi_indiv],
+            "valores": [c for _, c in top_idi_indiv],
+            "combinaciones_labels": [i for i, _ in top_idi_combo],
+            "combinaciones_valores": [c for _, c in top_idi_combo],
+        },
+        # Claves adicionales heredadas
+        "rangos_valores": [rango_0, rango_1_10, rango_10_30, rango_mas_30],
+        "generos_labels": [nombre for nombre, _ in top_gen_indiv[:10]],
+        "generos_valores": [cantidad for _, cantidad in top_gen_indiv[:10]],
+        "top_juegos_labels": [item[2] for item in top_10_precios],
+        "top_juegos_valores": [item[3] for item in top_10_precios],
     }
+
+
+@app.route('/api/dashboard/metricas')
+def api_dashboard_metricas():
+    """Endpoint JSON en vivo para actualizar los tableros BI al cambiar segmentadores."""
+    db = get_db()
+    monetizacion = request.args.get('monetizacion', 'todos')
+    plataforma = request.args.get('plataforma', 'todas')
+    genero = request.args.get('genero', '')
+    metricas = _obtener_metricas_dashboard(
+        db,
+        monetizacion=monetizacion,
+        plataforma=plataforma,
+        genero=genero,
+    )
+    return jsonify(metricas)
+
 
 @app.route('/dashboard')
 def dashboard():
-    """Panel analítico BI con métricas en vivo de SQLite e integración de Power BI."""
+    """Panel analítico BI con las 3 hojas interactivas del TP2 en vivo desde SQLite."""
     db = get_db()
-    metricas = _obtener_metricas_dashboard(db)
+    monetizacion = request.args.get('monetizacion', 'todos')
+    plataforma = request.args.get('plataforma', 'todas')
+    genero = request.args.get('genero', '')
+    metricas = _obtener_metricas_dashboard(
+        db,
+        monetizacion=monetizacion,
+        plataforma=plataforma,
+        genero=genero,
+    )
     return render_template(
         'dashboard.html',
         imagenes_bi=_listar_imagenes_powerbi(),
         powerbi_embed_url=POWERBI_EMBED_URL,
+        generos_lista=GENEROS_PRINCIPALES,
+        metricas_json=metricas,
         usuario=session.get('usuario'),
         **metricas
     )
